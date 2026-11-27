@@ -1448,6 +1448,17 @@ for (const [k, v] of Object.entries(RULE_CONSTANTS)) {
 // public mutators call onMutate: the construction-time parse must never
 // remirror a sheet that is mid-reparse.
 const MEDIA_LIST_TOKEN = Symbol("kitesurfMediaList");
+// One media query as MediaList stores it: comments become spaces and CSS whitespace collapses,
+// so equal queries compare equal. EOF closes an open `(`, as in Chrome.
+
+// A query unsafe for the mirror (see preludeClosers: an unbalanced or top-level brace, a bad or
+// open string, an open url or `[`, a top-level `;`) is `not all`, as in Chrome.
+function normalizeMedium(text: string): string {
+  const m = trimCss(collapseCssSpace(stripCssComments(text, " ")));
+  if (!m) return m;
+  const closers = preludeClosers(m, false);
+  return closers === null || closers.includes("]") ? "not all" : m + closers;
+}
 class MediaListCls implements Idl.MediaList {
   readonly [index: number]: string;
   #media: string[] = [];
@@ -1459,9 +1470,8 @@ class MediaListCls implements Idl.MediaList {
   }
   #setText(text: unknown) {
     const old = this.#media.length;
-    this.#media = String(text == null ? "" : text)
-      .split(",")
-      .map((m) => m.trim())
+    this.#media = splitCssList(String(text == null ? "" : text))
+      .map(normalizeMedium)
       .filter(Boolean);
     this.#sync(old);
   }
@@ -1487,7 +1497,10 @@ class MediaListCls implements Idl.MediaList {
     return m != null ? m : null;
   }
   appendMedium(medium: string) {
-    const m = String(medium).trim();
+    // An argument holding more than one query parses to no single medium: Chrome ignores it.
+    const parts = splitCssList(String(medium));
+    if (parts.length !== 1) return;
+    const m = normalizeMedium(parts[0]);
     if (m && !this.#media.includes(m)) {
       this.#media.push(m);
       this.#sync(this.#media.length - 1);
@@ -1495,7 +1508,9 @@ class MediaListCls implements Idl.MediaList {
     }
   }
   deleteMedium(medium: string) {
-    const i = this.#media.indexOf(String(medium).trim());
+    const parts = splitCssList(String(medium));
+    if (parts.length !== 1) return;
+    const i = this.#media.indexOf(normalizeMedium(parts[0]));
     if (i >= 0) {
       const old = this.#media.length;
       this.#media.splice(i, 1);
@@ -1846,12 +1861,32 @@ class CSSFontPaletteValuesRuleCls extends CSSRuleInterface {
     return rs<"declBag">(this).declBag.overrideColors || "";
   }
 }
+// Names Chrome will not leave bare as a family: CSS-wide keywords, `default` and the generic
+// families it reserves (`emoji`, `fangsong` and the `ui-*` names stay bare in Chrome).
+const RESERVED_FAMILY = new Set([
+  ...["inherit", "initial", "unset", "revert", "revert-layer", "default"],
+  ...["serif", "sans-serif", "cursive", "fantasy", "monospace", "system-ui", "math"],
+]);
 class CSSFontFeatureValuesRuleCls extends CSSRuleInterface {
   get fontFamily(): string {
     return rs(this).name || "";
   }
   set fontFamily(v: string) {
-    rs(this).name = String(v == null ? "" : v);
+    const s = rs(this);
+    // Like Chrome, the value is a plain comma list and empty items are dropped. A family that is
+    // one plain identifier stays bare; any other text, a CSS-wide keyword or a generic family
+    // becomes a string, so nothing reaches the mirror unescaped.
+    s.name = String(v == null ? "" : v)
+      .split(",")
+      .map(trimCssSpace)
+      .filter(Boolean)
+      .map((f) =>
+        isCssIdent(f) && !f.includes("\\") && !RESERVED_FAMILY.has(f.toLowerCase())
+          ? f
+          : serializeCssString(f),
+      )
+      .join(", ");
+    if (s.onMutate) s.onMutate();
   }
   get annotation(): FeatureValuesMap {
     return rs<"features">(this).features.annotation;
@@ -2072,32 +2107,431 @@ function constructCounterStyleRule(
   ruleState.set(rule, st);
   return rule;
 }
-function splitStylesheetRules(src: unknown): ParsedRuleList {
+// Drops comments outside strings. `/*/` is still open, and an unclosed comment runs to the end.
+// `gap` replaces each comment: a space where the comment separates tokens (media queries).
+function stripCssComments(src: string, gap = ""): string {
+  let out = "";
+  let from = 0;
+  let inStr = "";
+  // An escaped code point right before `url(` is part of the same name.
+  let escapeEnd = -1;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === "\\") {
+      // Outside a string, `\` before a newline is not an escape.
+      if (!inStr && isStringBreak(src[i + 1])) {
+        escapeEnd = -1;
+        continue;
+      }
+      i += escapeLength(src, i) - 1;
+      escapeEnd = i + 1;
+      continue;
+    }
+    if (inStr) {
+      if (ch === inStr || isStringBreak(ch)) inStr = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inStr = ch;
+      continue;
+    }
+    // An unquoted url(...) is one token: a `/*` inside it is not a comment.
+    const urlEnd = urlTokenEnd(src, i, escapeEnd);
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
+      continue;
+    }
+    if (ch === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      // After a hex escape the comment still ends the escape and the token: `onl\79/**/all`
+      // is `only all`, not `\79a`. With a gap, one space terminates the escape and the gap
+      // separates. Without one, an empty comment keeps the boundary exactly: a space would
+      // turn `#u\31/**/span` (invalid) into the descendant selector `#u1 span`.
+      const afterEscape = escapeEnd === i && isHexDigit(src[i - 1]);
+      out += src.slice(from, i) + (afterEscape ? (gap ? " " + gap : "/**/") : gap);
+      if (end < 0) return out;
+      i = end + 1;
+      from = end + 2;
+    }
+  }
+  return out + src.slice(from);
+}
+function isUnquotedUrlAt(src: string, i: number): boolean {
+  // Runs on every character outside strings: rule most out before slicing.
+  if (src[i] !== "u" && src[i] !== "U") return false;
+  // `url` must start the identifier: a name character, `\`, non-ASCII or NUL (read as U+FFFD)
+  // before it extends it, and after `#` or `@` it is a hash or at-keyword.
+  if (
+    !/^url\($/i.test(src.slice(i, i + 4)) ||
+    /[\w\\\-#@\u0000\u0080-\uffff]/.test(src[i - 1] ?? "")
+  ) {
+    return false;
+  }
+  let j = i + 4;
+  while (src[j] === " " || src[j] === "\t" || isStringBreak(src[j])) j++;
+  return src[j] !== '"' && src[j] !== "'";
+}
+// If an unquoted url token starts at i, the index after it; otherwise -1. escapeEnd is where
+// the last escape ended: an escaped code point right before `url(` is part of the same name.
+function urlTokenEnd(src: string, i: number, escapeEnd: number): number {
+  return escapeEnd !== i && isUnquotedUrlAt(src, i) ? unquotedUrlEnd(src, i) : -1;
+}
+// Index after the `)` that closes the url (a bad url runs to `)` too), or one past the end of
+// the text when the url is still open there.
+function unquotedUrlEnd(src: string, i: number): number {
+  let j = i + 4;
+  while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
+  return j < src.length ? j + 1 : src.length + 1;
+}
+// CSSOM "serialize an identifier" and "serialize a string".
+function serializeCssIdent(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const c = ch.charCodeAt(0);
+    const digit = c >= 0x30 && c <= 0x39;
+    if (c === 0) out += "\ufffd";
+    else if (c < 0x20 || c === 0x7f || (digit && (i === 0 || (i === 1 && s[0] === "-"))))
+      out += "\\" + c.toString(16) + " ";
+    else if (i === 0 && ch === "-" && s.length === 1) out += "\\-";
+    else if (c >= 0x80 || ch === "-" || ch === "_" || digit || /[A-Za-z]/.test(ch)) out += ch;
+    else out += "\\" + ch;
+  }
+  return out;
+}
+// The code points of an identifier that isCssIdent accepted, with each escape decoded.
+function decodeCssIdent(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length;) {
+    if (s[i] !== "\\") {
+      out += s[i++];
+      continue;
+    }
+    const len = escapeLength(s, i);
+    if (isHexDigit(s[i + 1])) {
+      const cp = parseInt(s.slice(i + 1, i + len).trim(), 16);
+      const bad = cp === 0 || (cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff;
+      out += bad ? "\ufffd" : String.fromCodePoint(cp);
+    } else out += s[i + 1];
+    i += len;
+  }
+  return out;
+}
+function serializeCssString(s: string): string {
+  let out = '"';
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    if (c === 0) out += "\ufffd";
+    else if (c < 0x20 || c === 0x7f) out += "\\" + c.toString(16) + " ";
+    else if (ch === '"' || ch === "\\") out += "\\" + ch;
+    else out += ch;
+  }
+  return out + '"';
+}
+// An identifier, with CSS escapes: `--` or an optional `-` and a name start, then name chars.
+// A forward scan that reads each escape once, so a crafted name cannot make it backtrack.
+function isCssIdent(s: string): boolean {
+  let i = 0;
+  if (s[0] === "-" && s[1] === "-") i = 2;
+  else {
+    if (s[0] === "-") i = 1;
+    if (!isNameStart(s[i]) && !isIdentEscape(s, i)) return false;
+  }
+  while (i < s.length) {
+    const ch = s[i];
+    if (isNameStart(ch) || ch === "-" || (ch >= "0" && ch <= "9")) i++;
+    else if (isIdentEscape(s, i)) i += escapeLength(s, i);
+    else return false;
+  }
+  return true;
+}
+// A dashed identifier (`--x`): its first two code points, after escapes, are both `-`.
+function isDashedIdent(s: string): boolean {
+  if (!isCssIdent(s)) return false;
+  let i = 0;
+  for (let n = 0; n < 2; n++) {
+    if (s[i] === "-") {
+      i++;
+      continue;
+    }
+    if (s[i] !== "\\") return false;
+    const len = escapeLength(s, i);
+    const hex = s.slice(i + 1, i + len).trim();
+    if (!(isHexDigit(s[i + 1]) ? parseInt(hex, 16) === 0x2d : s[i + 1] === "-")) return false;
+    i += len;
+  }
+  return true;
+}
+function isNameStart(ch: string | undefined): boolean {
+  if (ch === undefined) return false;
+  return ch === "_" || (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch >= "\u0080";
+}
+// A `\` that starts a valid escape: not at the end and not before a line break.
+function isIdentEscape(s: string, i: number): boolean {
+  return s[i] === "\\" && i + 1 < s.length && !isStringBreak(s[i + 1]);
+}
+// Splits a list on `sep` outside strings, comments, url tokens and (, [ and { blocks.
+function splitCssList(text: string, sep = ","): string[] {
+  const parts: string[] = [];
+  const stack: string[] = [];
+  let from = 0;
+  let q = "";
+  let escapeEnd = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\") {
+      if (q || !isStringBreak(text[i + 1])) {
+        i += escapeLength(text, i) - 1;
+        escapeEnd = i + 1;
+      }
+      continue;
+    }
+    if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+      continue;
+    }
+    const urlEnd = urlTokenEnd(text, i, escapeEnd);
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
+    } else if (ch === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 1;
+    } else if (ch === '"' || ch === "'") {
+      q = ch;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      stack.push(ch === "(" ? ")" : ch === "[" ? "]" : "}");
+    } else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+    } else if (ch === sep && stack.length === 0) {
+      parts.push(text.slice(from, i));
+      from = i + 1;
+    }
+  }
+  parts.push(text.slice(from));
+  return parts;
+}
+// An unescaped newline ends a string as a bad-string token.
+function isStringBreak(ch: string | undefined): boolean {
+  return ch === "\n" || ch === "\r" || ch === "\f";
+}
+// Rules are rebuilt as `prelude { body }`. A trimmed piece that ends in a string broken by a
+// newline must keep that newline, or the rebuilt text puts the next brace inside the string.
+// A trailing escape lost what trim cut: the space after a lone `\`, or the terminator of a hex
+// escape in a string (the added newline would become that terminator).
+function keepStringBreak(t: string): string {
+  let q = "";
+  let pad = "";
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === "\\") {
+      const len = escapeLength(t, i);
+      const atEnd = i + len >= t.length;
+      pad = atEnd && (i + 1 === t.length || (q && isHexDigit(t[i + 1]))) ? " " : "";
+      i += len - 1;
+    } else if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+    } else if (ch === '"' || ch === "'") {
+      q = ch;
+    }
+  }
+  return t + pad + (q ? "\n" : "");
+}
+// CSS whitespace is space, tab, LF, CR and FF. NBSP and other JS whitespace are name characters.
+function isCssSpace(ch: string | undefined): boolean {
+  return ch === " " || ch === "\t" || isStringBreak(ch);
+}
+function trimCss(s: string): string {
+  return keepStringBreak(trimCssSpace(s));
+}
+// Trims CSS whitespace only, for plain text that is not parsed as CSS.
+function trimCssSpace(s: string): string {
+  let a = 0;
+  let b = s.length;
+  while (a < b && isCssSpace(s[a])) a++;
+  while (b > a && isCssSpace(s[b - 1])) b--;
+  return s.slice(a, b);
+}
+// Collapses CSS whitespace runs (space, tab, newline, CR, FF; not NBSP) to one space, but keeps a
+// newline that ends a string and the terminator of a hex escape.
+function collapseCssSpace(s: string): string {
+  let out = "";
+  let q = "";
+  let gap = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q && isStringBreak(ch)) {
+      q = "";
+      gap = "\n";
+      continue;
+    }
+    if (!q && isCssSpace(ch)) {
+      if (!gap) gap = " ";
+      continue;
+    }
+    if (gap) {
+      if (out) out += gap;
+      gap = "";
+    }
+    if (ch === "\\") {
+      const esc = s.slice(i, i + escapeLength(s, i));
+      i += esc.length - 1;
+      // A hex escape's whitespace terminator is part of the escape: keep it as one space, and
+      // let whitespace after it collapse to a separator of its own.
+      out += !q && isHexDigit(esc[1]) && /[ \t\n\r\f]$/.test(esc) ? esc.trimEnd() + " " : esc;
+      continue;
+    }
+    if (q ? ch === q : ch === '"' || ch === "'") q = q ? "" : ch;
+    out += ch;
+  }
+  return gap === "\n" ? out + gap : out;
+}
+function isHexDigit(ch: string | undefined): boolean {
+  return ch !== undefined && /^[0-9a-fA-F]$/.test(ch);
+}
+// A backslash escapes the next character, or a whole CRLF line break. A hex escape takes up
+// to six hex digits and one whitespace terminator, so a newline after it does not end a string.
+function escapeLength(text: string, i: number): number {
+  let j = i + 1;
+  while (j < i + 7 && isHexDigit(text[j])) j++;
+  if (j === i + 1) return text[j] === "\r" && text[j + 1] === "\n" ? 3 : 2;
+  if (text[j] === "\r" && text[j + 1] === "\n") return j + 2 - i;
+  const ws = text[j] === " " || text[j] === "\t" || isStringBreak(text[j]);
+  return ws ? j + 1 - i : j - i;
+}
+// A prelude that is safe to paste into the mirror: no brace outside a balanced function, no bad
+// string (one a line break ends), and no string, url, `(` or `[` left open. A stray `)` or `]`
+// is allowed, as eofClosers allows it.
+function isClosedPrelude(text: string): boolean {
+  return preludeClosers(text, true) === "";
+}
+// What closes a prelude's open `(` and `[` blocks at EOF, innermost first, or null when the
+// prelude is unsafe for the mirror: a `{` outside `(`/`[`, an unmatched or unclosed brace, a bad
+// string (unless `badStrings`), a string or url left open, or (when `semicolon` is false) a `;`
+// outside every block. Braces balanced inside a function (`future({})`) are safe, as in Chrome.
+function preludeClosers(text: string, semicolon: boolean, badStrings = false): string | null {
+  const stack: string[] = [];
+  let q = "";
+  let escapeEnd = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\") {
+      if (!q && isStringBreak(text[i + 1])) {
+        escapeEnd = -1;
+        continue;
+      }
+      i += escapeLength(text, i) - 1;
+      escapeEnd = i + 1;
+      continue;
+    }
+    if (q) {
+      if (isStringBreak(ch)) {
+        if (!badStrings) return null;
+        q = "";
+      } else if (ch === q) q = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      q = ch;
+      continue;
+    }
+    const urlEnd = urlTokenEnd(text, i, escapeEnd);
+    if (urlEnd > text.length) return null;
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
+    } else if (ch === "{") {
+      if (stack.length === 0) return null;
+      stack.push("}");
+    } else if (ch === ";" && !semicolon && stack.length === 0) {
+      return null;
+    } else if (ch === "(" || ch === "[") {
+      stack.push(ch === "(" ? ")" : "]");
+    } else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+    } else if (ch === "}") {
+      return null;
+    }
+  }
+  return q || stack.includes("}") ? null : stack.reverse().join("");
+}
+// What EOF closes in an unclosed rule body: the open string or url, then each open (, [ and {
+// block, innermost first.
+function eofClosers(body: string): string {
+  const stack: string[] = [];
+  let q = "";
+  let escapeEnd = -1;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "\\") {
+      if (!q && isStringBreak(body[i + 1])) {
+        escapeEnd = -1;
+        continue;
+      }
+      i += escapeLength(body, i) - 1;
+      escapeEnd = i + 1;
+      continue;
+    }
+    if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      q = ch;
+      continue;
+    }
+    const urlEnd = urlTokenEnd(body, i, escapeEnd);
+    if (urlEnd > body.length) return ")" + stack.reverse().join("");
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      stack.push(ch === "(" ? ")" : ch === "[" ? "]" : "}");
+    } else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+    }
+  }
+  return q + stack.reverse().join("");
+}
+// Splits a rule list into rule chunks. A top-level `;` ends only an at-rule statement: before
+// any other rule it is prelude text, so that rule runs to its `{` and is invalid. Declaration
+// lists (an @page body) pass `declarations` so each `;` ends a declaration chunk.
+function splitStylesheetRules(src: unknown, declarations = false): ParsedRuleList {
   const out = Object.assign([] as ParsedRuleChunk[], {
     trailingGarbage: "",
     unbalanced: false,
   });
-  const text = String(src).replace(/\/\*[\s\S]*?\*\//g, "");
+  const text = stripCssComments(String(src));
   const n = text.length;
   let i = 0;
   let chunkStart = 0;
-  let depth = 0;
-  let parenDepth = 0;
+  // Closers of the open (, [ and { blocks. Inside a block only its own closer ends it, so a `}`
+  // inside an open `(` or `[` is plain text, as in CSS Syntax.
+  const stack: string[] = [];
+  // The `{` that opened the current rule's block, at the top level only.
   let braceOpenAt = -1;
   let inStr = "";
+  let escapeEnd = -1;
+  // First non-space character of the chunk at leadFor, found when a `;` needs it.
+  let leadFor = -1;
+  let lead = "";
   while (i < n) {
     const ch = text[i];
     if (inStr) {
       if (ch === "\\") {
-        i += 2;
+        i += escapeLength(text, i);
         continue;
       }
-      if (ch === inStr) inStr = "";
+      if (ch === inStr || isStringBreak(ch)) inStr = "";
       i++;
       continue;
     }
     if (ch === "\\") {
-      i += 2;
+      // Outside a string, `\` before a newline is not an escape.
+      if (isStringBreak(text[i + 1])) {
+        escapeEnd = -1;
+        i++;
+        continue;
+      }
+      i += escapeLength(text, i);
+      escapeEnd = i;
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -2105,30 +2539,29 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
       i++;
       continue;
     }
-    if (ch === "(") {
-      parenDepth++;
+    // An unquoted url(...) is one token: a brace or `;` inside it does not end the rule.
+    const urlEnd = urlTokenEnd(text, i, escapeEnd);
+    if (urlEnd >= 0) {
+      i = urlEnd;
+      continue;
+    }
+    if (ch === "(" || ch === "[" || ch === "{") {
+      // A `{` inside a prelude's `(` or `[` is part of that block, not a rule block.
+      if (ch === "{" && stack.length === 0) braceOpenAt = i;
+      stack.push(ch === "(" ? ")" : ch === "[" ? "]" : "}");
       i++;
       continue;
     }
-    if (ch === ")" && parenDepth > 0) {
-      parenDepth--;
-      i++;
-      continue;
-    }
-    if (ch === "{") {
-      if (depth === 0) braceOpenAt = i;
-      depth++;
-      i++;
-      continue;
-    }
-    if (ch === "}") {
-      depth--;
-      if (depth === 0 && braceOpenAt >= 0) {
-        const selectorText = text.slice(chunkStart, braceOpenAt).trim();
-        const declText = text.slice(braceOpenAt + 1, i).trim();
+    // Only the innermost block's closer ends it. A stray `}` at the top level is prelude text:
+    // the rule it starts is invalid.
+    if (ch === stack[stack.length - 1]) {
+      stack.pop();
+      if (stack.length === 0 && ch === "}") {
+        const selectorText = trimCss(text.slice(chunkStart, braceOpenAt));
+        const declText = trimCss(text.slice(braceOpenAt + 1, i));
         const cssText = selectorText
           ? selectorText + " { " + declText + " }"
-          : text.slice(chunkStart, i + 1).trim();
+          : trimCss(text.slice(chunkStart, i + 1));
         out.push({ cssText, selectorText, declText });
         chunkStart = i + 1;
         braceOpenAt = -1;
@@ -2136,16 +2569,41 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
       i++;
       continue;
     }
-    if (depth === 0 && parenDepth === 0 && ch === ";") {
-      const raw = text.slice(chunkStart, i + 1).trim();
-      if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
-      chunkStart = i + 1;
+    if (stack.length === 0 && ch === ";") {
+      if (leadFor !== chunkStart) {
+        let j = chunkStart;
+        while (j < i && isCssSpace(text[j])) j++;
+        leadFor = chunkStart;
+        lead = text[j];
+      }
+      if (declarations || lead === "@") {
+        const raw = trimCss(text.slice(chunkStart, i + 1));
+        if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
+        chunkStart = i + 1;
+      }
     }
     i++;
   }
-  const tail = text.slice(chunkStart).trim();
+  // EOF closes an open string, url, function and block (CSS Syntax), so an unclosed last rule
+  // still counts. Emit it closed, or a rule appended after it would land inside it.
+  if (stack[0] === "}" && braceOpenAt >= 0) {
+    let body = text.slice(braceOpenAt + 1);
+    // A lone trailing `\` would escape the closer.
+    if (/(^|[^\\])(\\\\)*\\$/.test(body)) body += " ";
+    body += eofClosers(body);
+    const selectorText = trimCss(text.slice(chunkStart, braceOpenAt));
+    const declText = trimCss(body);
+    const cssText = selectorText
+      ? selectorText + " { " + declText + " }"
+      : trimCss(text.slice(chunkStart, braceOpenAt + 1)) + " " + declText + " }";
+    out.push({ cssText, selectorText, declText });
+    chunkStart = n;
+    stack.length = 0;
+    inStr = "";
+  }
+  const tail = trimCss(text.slice(chunkStart));
   out.trailingGarbage = tail.length > 0 ? tail : "";
-  out.unbalanced = depth !== 0 || parenDepth !== 0 || inStr !== "";
+  out.unbalanced = stack.length !== 0 || inStr !== "";
   return out;
 }
 
@@ -2616,7 +3074,7 @@ function constructRule(
 
   if (kind === "media" || kind === "supports") {
     const rule = mk(kind === "media" ? CSSMediaRuleCls : CSSSupportsRuleCls);
-    const cond = sel.replace(/^@(media|supports)/i, "").trim();
+    const cond = trimCss(sel.replace(/^@(media|supports)/i, ""));
     const st: RuleState = {
       ...base,
       typeNum: kind === "media" ? 4 : 12,
@@ -2642,7 +3100,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 0,
-      name: sel.replace(/^@layer/i, "").trim(),
+      name: trimCss(sel.replace(/^@layer/i, "")),
       childRules: undefined,
       serialize() {
         return "@layer" + (st.name ? " " + st.name : "") + serializeChildBlock(st.childRules);
@@ -2658,16 +3116,8 @@ function constructRule(
 
   if (kind === "layer-statement") {
     const rule = mk(CSSLayerStatementRuleCls);
-    const names = raw
-      .replace(/^@layer/i, "")
-      .replace(/;\s*$/, "")
-      .trim();
-    const list = names
-      ? names
-          .split(",")
-          .map((s: string) => s.trim())
-          .filter(Boolean)
-      : [];
+    const names = trimCss(raw.replace(/^@layer/i, "").replace(/;[ \t\n\r\f]*$/, ""));
+    const list = names ? splitCssList(names).map(trimCss).filter(Boolean) : [];
     const st: RuleState = {
       ...base,
       typeNum: 0,
@@ -2681,10 +3131,21 @@ function constructRule(
   }
 
   if (kind === "import") {
+    // An @import has no block, so a brace in its text makes it invalid (Chrome drops it). Kept,
+    // the brace would be pasted into the mirror. A bad string is fine in the media list, where
+    // MediaList turns its query into `not all`, but not in the url or the clauses before it.
+    if (preludeClosers(raw, true, true) !== "") return null;
     const sup = extractImportSupports(raw);
     const m = sup.rest.match(
       /^@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*(layer(?:\(([^)]*)\))?)?\s*(?:supports\(([\s\S]*?)\))?\s*([^;]*);?\s*$/i,
     );
+    const mediaAt = m && m[9] ? sup.rest.lastIndexOf(m[9]) : sup.rest.length;
+    if (!isClosedPrelude(sup.rest.slice(0, mediaAt))) return null;
+    // extractImportSupports took the supports() clause out of `rest`: check it inside its parens,
+    // so a brace balanced in it stays allowed (`supports(--foo: {a})`). An empty clause is
+    // invalid. Both as in Chrome.
+    const st = sup.supportsText;
+    if (st != null && (st === "" || !isClosedPrelude("(" + st + ")"))) return null;
     if (m) {
       const rule = mk(CSSImportRuleCls);
       const href =
@@ -2770,18 +3231,31 @@ function constructRule(
   }
 
   if (kind === "font-palette-values") {
+    // The name is a dashed identifier, as Chrome requires; anything else (a brace, say) would
+    // be pasted into the mirror raw.
+    const paletteName = trimCss(sel.replace(/^@font-palette-values/i, ""));
+    if (!isDashedIdent(paletteName)) return null;
     const rule = mk(CSSFontPaletteValuesRuleCls);
     const declBag: Record<string, string> = Object.create(null);
-    parseCssTextInto(parsed.declText || "", declBag);
+    // A `;` inside a block or url is part of the value: splitting there would leave the
+    // serialized value with an open block that swallows the rules after it.
+    for (const decl of splitCssList(String(parsed.declText || ""), ";")) {
+      const colon = decl.indexOf(":");
+      const name = colon > 0 ? trimCss(decl.slice(0, colon)) : "";
+      // A descriptor name is an identifier; anything else (an open string, say) is dropped.
+      if (isCssIdent(name)) {
+        declBag[cssPropToCamel(name)] = decl.slice(colon + 1).trim();
+      }
+    }
     const st: RuleState = {
       ...base,
       typeNum: 0,
-      name: sel.replace(/^@font-palette-values/i, "").trim(),
+      name: paletteName,
       declBag,
       serialize() {
         const parts: string[] = [];
         for (const k of Object.keys(declBag)) {
-          parts.push(cssPropCamelToKebab(k) + ": " + declBag[k] + ";");
+          parts.push(cssPropCamelToKebab(k) + ": " + keepStringBreak(declBag[k]) + ";");
         }
         return (
           "@font-palette-values " +
@@ -2795,6 +3269,10 @@ function constructRule(
   }
 
   if (kind === "font-feature-values") {
+    // The family names are pasted into the mirror as written, so a brace in them would
+    // unbalance the sheet. Chrome drops such a rule too.
+    const family = trimCss(sel.replace(/^@font-feature-values/i, ""));
+    if (!isClosedPrelude(family)) return null;
     const rule = mk(CSSFontFeatureValuesRuleCls);
     const onMutateRef: { fn: (() => void) | null } = { fn: null };
     const features: Record<string, FeatureValuesMap> = {};
@@ -2806,7 +3284,11 @@ function constructRule(
       for (const decl of String(p.declText || "").split(";")) {
         const colon = decl.indexOf(":");
         if (colon <= 0) continue;
-        const name = decl.slice(0, colon).trim();
+        // A feature name is an identifier; anything else would be pasted into the mirror raw.
+        const raw = trimCss(decl.slice(0, colon));
+        if (!isCssIdent(raw)) continue;
+        // Store the name decoded, as Chrome does (`fam\69 ly` is `family`).
+        const name = decodeCssIdent(raw);
         const nums = decl
           .slice(colon + 1)
           .trim()
@@ -2820,7 +3302,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 14,
-      name: sel.replace(/^@font-feature-values/i, "").trim(),
+      name: family,
       features,
       serialize() {
         const blocks: string[] = [];
@@ -2828,7 +3310,11 @@ function constructRule(
           const map = features[t];
           if (!map.size) continue;
           const entries: string[] = [];
-          map.forEach((v: number[], k: string) => entries.push(k + ": " + v.join(" ") + ";"));
+          map.forEach((v: number[], k: string) => {
+            // Parsed keys are stored decoded and script keys may be any text, so every key is
+            // escaped on the way out, as in Chrome. An empty key has no name to write.
+            if (k) entries.push(serializeCssIdent(k) + ": " + v.join(" ") + ";");
+          });
           blocks.push("@" + t + " { " + entries.join(" ") + " }");
         }
         return (
@@ -2847,7 +3333,7 @@ function constructRule(
     const st: RuleStateWith<"childRules"> = {
       ...base,
       typeNum: 7,
-      name: sel.replace(/^@(-webkit-)?keyframes/i, "").trim(),
+      name: trimCss(sel.replace(/^@(-webkit-)?keyframes/i, "")),
       childRules: makeRuleList([]),
       serialize() {
         return "@keyframes " + st.name + serializeChildBlock(st.childRules);
@@ -2870,7 +3356,7 @@ function constructRule(
     const rule = mk(CSSPageRuleCls);
     const declParts: string[] = [];
     const childRules = makeRuleList([]);
-    const pageBody = splitStylesheetRules(parsed.declText || "");
+    const pageBody = splitStylesheetRules(parsed.declText || "", true);
     for (const part of pageBody) {
       const marginName = marginRuleNameOf(part.selectorText);
       if (marginName) {
@@ -2929,12 +3415,10 @@ function constructRule(
     typeNum: 0,
     serialize() {
       if (sel) {
-        const d = String(parsed.declText || "")
-          .replace(/\s+/g, " ")
-          .trim();
+        const d = collapseCssSpace(String(parsed.declText || ""));
         return sel + (d ? " { " + d + " }" : " { }");
       }
-      return raw.replace(/\s+/g, " ").trim();
+      return collapseCssSpace(raw);
     },
   };
   ruleState.set(rule, st);
