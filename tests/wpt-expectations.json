@@ -12754,8 +12754,8 @@
     "reason": "13/17. https cross-protocol subtests die on wpt-serve's self-signed cert \u2014 workerd's fetch surfaces it as an opaque 'internal error'. Everything on http:// passes."
   },
   "/fetch/api/cors/cors-preflight-cache.any.html": {
-    "expected": "FAIL",
-    "reason": "Passes since the CORS gateway landed preflight, expose-headers filtering, credentials mode and the shim-owned redirect loop."
+    "expected": "PASS",
+    "reason": null
   },
   "/fetch/api/cors/cors-preflight-not-cors-safelisted.any.html": {
     "expected": "PASS",
@@ -12930,7 +12930,7 @@
   },
   "/fetch/api/request/request-bad-port.any.html": {
     "expected": "FAIL",
-    "reason": null
+    "reason": "The non-bad-port subtest needs META: pac, which wptrunner applies as a browser proxy setting; the Kitesurf runner sets no proxy, so bad-port.wpt never resolves."
   },
   "/fetch/api/request/request-cache-default-conditional.any.html": {
     "expected": "PASS",
@@ -19453,11 +19453,11 @@
     "reason": null
   },
   "/performance-timeline/buffered-flag-after-timeout.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/buffered-flag-observer.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/buffered-flag-with-entryTypes-observer.tentative.any.html": {
@@ -19473,11 +19473,11 @@
     "reason": null
   },
   "/performance-timeline/idlharness.any.html": {
-    "expected": "TIMEOUT",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "PerformanceEntry has no IDL attribute getters and no Performance interface object; the PerformanceObserver members pass."
   },
   "/performance-timeline/multiple-buffered-flag-observers.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/observer-buffered-false.any.html": {
@@ -19489,43 +19489,43 @@
     "reason": "Now passes after recent improvements (auto-rebaselined from sweep)."
   },
   "/performance-timeline/po-callback-mutate.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-disconnect-removes-observed-types.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-disconnect.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-entries-sort.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-getentries.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-mark-measure.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-observe-repeated-type.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-observe-type.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-observe.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/po-takeRecords.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/performance-timeline/supportedEntryTypes.any.html": {
@@ -21270,7 +21270,7 @@
     "reason": null
   },
   "/user-timing/buffered-flag.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/user-timing/case-sensitivity.any.html": {
@@ -21334,7 +21334,7 @@
     "reason": null
   },
   "/user-timing/mark-l3.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/user-timing/mark-measure-feature-detection.html": {
@@ -21402,7 +21402,7 @@
     "reason": null
   },
   "/user-timing/supported-usertiming-types.any.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/user-timing/user-timing-tojson.html": {
@@ -40570,15 +40570,15 @@
     "reason": null
   },
   "/css/css-typed-om/stylevalue-subclasses/numeric-objects/parse.tentative.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-typed-om/the-stylepropertymap/declared/append.tentative.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-typed-om/the-stylepropertymap/inline/append.tentative.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-typed-om/the-stylepropertymap/properties/position-visibility.html": {
