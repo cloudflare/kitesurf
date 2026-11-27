@@ -10,8 +10,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyrender::{Glyph as AnyGlyph, NormalizedCoord, Paint, PaintRef, RenderContext};
-use kurbo::{Affine, PathEl, Rect, Shape, Stroke};
+use anyrender::{
+    AntiAliasing, BoxShadowKind, Glyph as AnyGlyph, MaskMode, NonUniformRoundedRect,
+    NormalizedCoord, Paint, PaintRef, RenderContext,
+};
+use kurbo::{Affine, PathEl, Shape, Stroke, Vec2};
 use peniko::{color::Rgba8, BlendMode, Blob, Color, Fill as PenikoFill, StyleRef};
 
 const OP_PUSH_LAYER: usize = 0;
@@ -29,7 +32,7 @@ const MIN_WEBP_IMAGE_BYTES: usize = 4096;
 
 pub const HEADER_MAGIC: [u8; 4] = *b"KSC0";
 /// Bump on any wire change; the decoder and the CLI's rasterizer manifest require an exact match.
-pub const WIRE_VERSION: u32 = 17;
+pub const WIRE_VERSION: u32 = 18;
 /// u32 fields after magic: version, viewport w/h, scroll x/y, op count (informational, excludes
 /// `Part` and `GlyphText`), resource offset (0 = none, else ends the op stream), render-band
 /// top y and height.
@@ -49,6 +52,12 @@ pub(crate) const TAG_BOX_SHADOW: u8 = 0x07;
 pub(crate) const TAG_TEXT_RUN: u8 = 0x08;
 pub(crate) const TAG_PART: u8 = 0x09;
 pub(crate) const TAG_GLYPH_TEXT: u8 = 0x0a;
+pub(crate) const TAG_PUSH_MASK_LAYER: u8 = 0x0b;
+/// No payload: the fill or stroke that follows is drawn without anti-aliasing.
+pub(crate) const TAG_ALIASED: u8 = 0x0c;
+/// No payload: the next clip or mask layer clips to a rectangle, which backends clip without
+/// isolating a layer.
+pub(crate) const TAG_RECT_CLIP: u8 = 0x0d;
 pub(crate) const GLYPH_TEXT_RANGE_BYTES: usize = 8;
 
 // Paint tags: solid is RGBA8, image is a content hash u64, gradient has kind, extend, color
@@ -1324,7 +1333,36 @@ impl anyrender::PaintScene for RecordingScene {
     }
 
     fn push_clip_layer(&mut self, _fill: PenikoFill, transform: Affine, clip: &impl Shape) {
+        if clip.as_rect().is_some() {
+            self.tag_untracked(TAG_RECT_CLIP);
+        }
         self.tag(TAG_PUSH_CLIP_LAYER, OP_PUSH_CLIP_LAYER);
+        self.w_transform(transform);
+        if !self.w_path(clip) {
+            self.dropped_paths += 1;
+        }
+        self.depth += 1;
+        if self.depth > self.max_depth {
+            self.max_depth = self.depth;
+        }
+    }
+
+    // Counted with the compositing layers: a mask layer is one in every backend.
+    fn push_mask_layer(
+        &mut self,
+        _fill: PenikoFill,
+        mode: MaskMode,
+        transform: Affine,
+        clip: &impl Shape,
+    ) {
+        if clip.as_rect().is_some() {
+            self.tag_untracked(TAG_RECT_CLIP);
+        }
+        self.tag(TAG_PUSH_MASK_LAYER, OP_PUSH_LAYER);
+        self.w_u8(match mode {
+            MaskMode::Alpha => 0,
+            MaskMode::Luminance => 1,
+        });
         self.w_transform(transform);
         if !self.w_path(clip) {
             self.dropped_paths += 1;
@@ -1347,7 +1385,24 @@ impl anyrender::PaintScene for RecordingScene {
         brush: impl Into<PaintRef<'p>>,
         brush_transform: Option<Affine>,
         shape: &impl Shape,
+        anti_aliasing: AntiAliasing,
     ) {
+        let paint_ref: PaintRef<'p> = brush.into();
+        if let Paint::Pattern(pattern) = paint_ref {
+            anyrender::stroke_pattern_tiles(
+                self,
+                pattern,
+                style,
+                transform,
+                brush_transform,
+                shape,
+                None,
+            );
+            return;
+        }
+        if !anti_aliasing.is_enabled() {
+            self.tag_untracked(TAG_ALIASED);
+        }
         self.tag(TAG_STROKE, OP_STROKE);
         self.w_f32(style.width as f32);
         self.w_f32(style.miter_limit as f32);
@@ -1374,7 +1429,6 @@ impl anyrender::PaintScene for RecordingScene {
         }
         self.w_transform(transform);
         self.w_brush_transform(brush_transform);
-        let paint_ref: PaintRef<'p> = brush.into();
         self.w_paint(&paint_ref, affine_scale(transform));
         if !self.w_path(shape) {
             self.dropped_paths += 1;
@@ -1388,7 +1442,24 @@ impl anyrender::PaintScene for RecordingScene {
         brush: impl Into<PaintRef<'p>>,
         brush_transform: Option<Affine>,
         shape: &impl Shape,
+        anti_aliasing: AntiAliasing,
     ) {
+        let paint_ref: PaintRef<'p> = brush.into();
+        if let Paint::Pattern(pattern) = paint_ref {
+            anyrender::fill_pattern_tiles(
+                self,
+                pattern,
+                style,
+                transform,
+                brush_transform,
+                shape,
+                None,
+            );
+            return;
+        }
+        if !anti_aliasing.is_enabled() {
+            self.tag_untracked(TAG_ALIASED);
+        }
         self.tag(TAG_FILL, OP_FILL);
         self.w_u8(match style {
             PenikoFill::NonZero => 0,
@@ -1396,27 +1467,47 @@ impl anyrender::PaintScene for RecordingScene {
         });
         self.w_transform(transform);
         self.w_brush_transform(brush_transform);
-        let paint_ref: PaintRef<'p> = brush.into();
         self.w_paint(&paint_ref, affine_scale(transform));
         if !self.w_path(shape) {
             self.dropped_paths += 1;
         }
     }
 
+    // Glyph runs always replay anti-aliased: only SVG shapes turn it off.
     fn draw_glyphs<'p, 's: 'p>(
         &'s mut self,
         font: &'p peniko::FontData,
         font_size: f32,
-        _hint: bool,
+        hint: bool,
         normalized_coords: &'p [NormalizedCoord],
-        _embolden: kurbo::Vec2,
-        _style: impl Into<StyleRef<'p>>,
+        embolden: kurbo::Vec2,
+        style: impl Into<StyleRef<'p>>,
         brush: impl Into<PaintRef<'p>>,
         brush_alpha: f32,
         transform: Affine,
         glyph_transform: Option<Affine>,
         glyphs: impl Iterator<Item = AnyGlyph> + Clone,
+        _anti_aliasing: AntiAliasing,
     ) {
+        let paint_ref: PaintRef<'p> = brush.into();
+        if let Paint::Pattern(pattern) = paint_ref {
+            anyrender::draw_glyphs_pattern_tiles(
+                self,
+                pattern,
+                font,
+                font_size,
+                hint,
+                normalized_coords,
+                embolden,
+                style,
+                brush_alpha,
+                transform,
+                glyph_transform,
+                glyphs,
+                None,
+            );
+            return;
+        }
         let font_id = self.record_font(font, normalized_coords);
         let mut collected = std::mem::take(&mut self.glyph_scratch);
         collected.clear();
@@ -1456,7 +1547,6 @@ impl anyrender::PaintScene for RecordingScene {
             trip_test_paint_panic("after_mark");
         }
 
-        let paint_ref: PaintRef<'p> = brush.into();
         let synthetic_italic = glyph_transform.is_some_and(is_pure_skew);
         let text_run_emitted =
             if self.emit_text_runs && (glyph_transform.is_none() || synthetic_italic) {
@@ -1552,20 +1642,39 @@ impl anyrender::PaintScene for RecordingScene {
     fn draw_box_shadow(
         &mut self,
         transform: Affine,
-        rect: Rect,
-        brush: Color,
-        radius: f64,
+        box_shape: &NonUniformRoundedRect,
+        offset: Vec2,
+        spread: f64,
         std_dev: f64,
+        color: Color,
+        kind: BoxShadowKind,
     ) {
         self.tag(TAG_BOX_SHADOW, OP_BOX_SHADOW);
         self.w_transform(transform);
-        self.w_f32(rect.x0 as f32);
-        self.w_f32(rect.y0 as f32);
-        self.w_f32(rect.x1 as f32);
-        self.w_f32(rect.y1 as f32);
-        self.w_rgba8(brush.to_rgba8());
-        self.w_f32(radius as f32);
+        let r = box_shape.rect;
+        for v in [r.x0, r.y0, r.x1, r.y1] {
+            self.w_f32(v as f32);
+        }
+        let radii = box_shape.radii;
+        for v in [
+            radii.top_left,
+            radii.top_right,
+            radii.bottom_right,
+            radii.bottom_left,
+        ] {
+            self.w_f32(v.x as f32);
+            self.w_f32(v.y as f32);
+        }
+        self.w_f32(offset.x as f32);
+        self.w_f32(offset.y as f32);
+        self.w_f32(spread as f32);
         self.w_f32(std_dev as f32);
+        self.w_rgba8(color.to_rgba8());
+        self.w_u8(match kind {
+            BoxShadowKind::Outset => 0,
+            BoxShadowKind::OutsetUnclipped => 1,
+            BoxShadowKind::Inset => 2,
+        });
     }
 }
 
@@ -1859,6 +1968,7 @@ pub(crate) fn image_hash_u64(bytes: &[u8]) -> u64 {
 mod tests {
     use super::*;
     use anyrender::PaintScene as _;
+    use kurbo::Rect;
 
     #[test]
     fn image_hash_separates_bytes_lengths_and_lanes() {
@@ -1902,6 +2012,7 @@ mod tests {
                     brush.as_ref(),
                     None,
                     &Rect::new(0.0, 0.0, 64.0, 64.0),
+                    AntiAliasing::Enabled,
                 );
             }
             let encoded = scene.drain_rbi_images();

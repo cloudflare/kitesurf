@@ -1,0 +1,193 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 15:07:24 +0000
+Subject: [PATCH] Skip flat-tree font scan when no font, display, text, or face
+ changed
+
+`flush_needed_font_faces` walked every node whenever any `@font-face` was still
+pending, even when the restyle could not have made a pending face needed. Track
+whether a new face was declared, connected text was added, a style change altered
+an element's font or `display: none` state, or a `::before`/`::after` changed,
+and scan only then. A steady-state restyle on a page with an unused
+`@font-face` no longer pays for the walk.
+
+Expose the scan count so a test can pin that a steady-state restyle does not
+walk and that a font, display, or text change still does.
+---
+ src/document.rs        | 21 ++++++++++++++++++++-
+ src/mutator.rs         |  1 +
+ src/stylo/traversal.rs | 40 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 61 insertions(+), 1 deletion(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 0409f2a..96645c2 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -841,6 +841,12 @@ pub struct BaseDocument {
+     /// Last `style_traversal_epoch` at which unmaterialized pseudo-element content was folded into
+     /// `used_codepoints`.
+     pub(crate) last_pseudo_scan_epoch: u32,
++    /// True when a new `@font-face`, connected text, or font/display style change may have made
++    /// a previously unused pending `@font-face` needed, so the next flush must walk the flat tree.
++    pub(crate) font_scan_needed: bool,
++    /// How many times `flush_needed_font_faces` walked the flat tree to find nodes that use a
++    /// pending face. Exposed so tests can pin that a steady-state restyle does not scan.
++    pub(crate) font_scan_count: u64,
+     /// Every codepoint that appears in an in-document text node, as a
+     /// bitset over U+0000..=U+10FFFF (136 KiB, allocated on first use).
+     /// A `unicode-range`-subsetted face fetches only once the document
+@@ -1108,6 +1114,8 @@ impl BaseDocument {
+             used_font_requests: HashMap::new(),
+             style_traversal_epoch: 0,
+             last_pseudo_scan_epoch: 0,
++            font_scan_needed: true,
++            font_scan_count: 0,
+             used_codepoints: Vec::new(),
+             non_latin_text_writes: 0,
+             base_epoch: 0,
+@@ -2656,6 +2664,7 @@ impl BaseDocument {
+                 weight_range,
+                 unicode_range: key.unicode_range.clone(),
+             });
++            self.font_scan_needed = true;
+             self.seen_font_faces.insert(key);
+         }
+     }
+@@ -2730,6 +2739,7 @@ impl BaseDocument {
+
+     /// Fold connected text into the range index and advance the script-text probe.
+     pub(crate) fn note_document_codepoints(&mut self, text: &str) {
++        self.font_scan_needed = true;
+         note_connected_text_codepoints(
+             &mut self.used_codepoints,
+             &mut self.non_latin_text_writes,
+@@ -2742,6 +2752,12 @@ impl BaseDocument {
+         self.non_latin_text_writes
+     }
+
++    /// How many flat-tree scans `flush_needed_font_faces` has run. A steady-state restyle must
++    /// not add one.
++    pub fn font_scan_count(&self) -> u64 {
++        self.font_scan_count
++    }
++
+     /// Whether some in-document text node holds a codepoint inside one of the
+     /// inclusive `ranges`. Builds the codepoint bitset on first use.
+     pub fn text_uses_codepoints(&mut self, ranges: &[(u32, u32)]) -> bool {
+@@ -2901,7 +2917,8 @@ impl BaseDocument {
+         });
+
+         let mut pseudo_texts: Vec<String> = Vec::new();
+-        if !all_pending_used {
++        if !all_pending_used && self.font_scan_needed {
++            self.font_scan_count = self.font_scan_count.saturating_add(1);
+             let mut pending_by_family: HashMap<&str, Vec<(bool, (u16, u16), bool)>> =
+                 HashMap::new();
+             for face in &self.pending_font_faces {
+@@ -3121,6 +3138,7 @@ impl BaseDocument {
+                     }
+                 }
+             }
++            self.font_scan_needed = false;
+         }
+
+         let mut ready: Vec<PendingFontFace> = Vec::new();
+@@ -3505,6 +3523,7 @@ impl BaseDocument {
+                 // Deferred to the next resolve: the damage is only read there, and a page
+                 // receiving N faces would otherwise walk every node N times.
+                 self.inline_contexts_stale = true;
++                self.font_scan_needed = true;
+             }
+             Resource::None => {
+                 // Do nothing
+diff --git a/src/mutator.rs b/src/mutator.rs
+index f13ed53..c6d4d0d 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1747,6 +1747,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 && !parent_id.is_some_and(|parent_id| doc.is_non_rendered_text_parent(parent_id))
+             {
+                 if let Some(text) = doc.nodes[node_id].text_data() {
++                    doc.font_scan_needed = true;
+                     note_connected_text_codepoints(
+                         &mut doc.used_codepoints,
+                         &mut doc.non_latin_text_writes,
+diff --git a/src/stylo/traversal.rs b/src/stylo/traversal.rs
+index 8d6fd39..ca943e7 100644
+--- a/src/stylo/traversal.rs
++++ b/src/stylo/traversal.rs
+@@ -175,6 +175,7 @@ impl crate::document::BaseDocument {
+             nodes_needing_style_image_flush =
+                 std::mem::take(traverser.nodes_needing_style_image_flush.get_mut().unwrap());
+             self.size_container_seen |= *traverser.saw_size_container.get_mut();
++            self.font_scan_needed |= *traverser.font_styles_changed.get_mut();
+         }
+         if traversed {
+             self.style_traversal_epoch = self.style_traversal_epoch.wrapping_add(1);
+@@ -664,6 +665,8 @@ pub struct RecalcStyle<'a> {
+     nodes_needing_style_image_flush: Mutex<Vec<NodeId>>,
+     /// Whether this traversal styled any element or eager pseudo-element as a query container.
+     saw_size_container: AtomicBool,
++    /// Whether this traversal changed any element's font, display:none state, or ::before/::after.
++    font_styles_changed: AtomicBool,
+ }
+
+ impl<'a> RecalcStyle<'a> {
+@@ -672,6 +675,7 @@ impl<'a> RecalcStyle<'a> {
+             context,
+             nodes_needing_style_image_flush: Mutex::new(Vec::new()),
+             saw_size_container: AtomicBool::new(false),
++            font_styles_changed: AtomicBool::new(false),
+         }
+     }
+ }
+@@ -702,6 +706,14 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+                 .styles
+                 .get_primary()
+                 .map(|style| has_inline_background(style));
++            let track_font_change = !self.font_styles_changed.load(Ordering::Relaxed);
++            let old_primary = track_font_change
++                .then(|| data.styles.get_primary().cloned())
++                .flatten();
++            let old_pseudos = track_font_change.then(|| {
++                let p = data.styles.pseudos.as_array();
++                (p[0].clone(), p[1].clone())
++            });
+             recalc_style_at(self, context, el, &mut data, note_child);
+
+             // Parley captures background-fragment presence at box construction. Stylo's repaint
+@@ -717,6 +729,34 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+             // Box construction copies a shown placeholder's look onto its text input, and stylo's
+             // damage covers only the control's own style.
+             let styled = !data.flags.contains(ElementDataFlags::TRAVERSED_WITHOUT_STYLING);
++            if track_font_change && styled {
++                let primary_changed = match (&old_primary, data.styles.get_primary()) {
++                    (Some(old), Some(new)) => {
++                        !std::ptr::eq(old.get_font(), new.get_font())
++                            || old.get_box().display.is_none() != new.get_box().display.is_none()
++                    }
++                    (None, None) => false,
++                    _ => true,
++                };
++                let pseudo_changed = old_pseudos.as_ref().is_some_and(|(old_a, old_b)| {
++                    let p = data.styles.pseudos.as_array();
++                    let same = |a: &Option<style::servo_arc::Arc<ComputedValues>>,
++                                b: &Option<style::servo_arc::Arc<ComputedValues>>| {
++                        match (a, b) {
++                            (Some(x), Some(y)) => std::ptr::eq(
++                                x.as_ref() as *const ComputedValues,
++                                y.as_ref() as *const ComputedValues,
++                            ),
++                            (None, None) => true,
++                            _ => false,
++                        }
++                    };
++                    !same(old_a, &p[0]) || !same(old_b, &p[1])
++                });
++                if primary_changed || pseudo_changed {
++                    self.font_styles_changed.store(true, Ordering::Relaxed);
++                }
++            }
+             if styled && placeholder_look_is_stale(&self.context, el.0, &data) {
+                 data.damage.insert(CONSTRUCT_BOX);
+             }

@@ -1,0 +1,208 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 11:22:35 +0000
+Subject: [PATCH] fonts: scope document.fonts.load() demand to matching faces
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+`demand_all_font_faces` set a sticky `load_all_font_faces` flag that caused
+every declared `@font-face` (all families, weights, styles, and unicode-range
+slices) to fetch for the rest of the document's lifetime. Replace it with a
+one-shot `demand_font_faces(families, italic, weight, text)` that matches the
+requested families, applies CSS Fonts 4 §5.2 style/weight selection, and gates
+on `unicode-range` covering `text`, leaving unrelated faces pending.
+---
+ src/document.rs | 131 +++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 95 insertions(+), 36 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 5e52448..0409f2a 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -338,6 +338,18 @@ fn face_matches_css_selection(
+     best_rank == Some(weight_range_rank(req_weight, face_weight_range))
+ }
+
++/// True when `text` has at least one codepoint inside one of `ranges` (or any codepoint when
++/// `ranges` is `None`, i.e. no `unicode-range` descriptor).
++fn face_covers_text(ranges: Option<&[(u32, u32)]>, text: &str) -> bool {
++    let Some(ranges) = ranges else {
++        return !text.is_empty();
++    };
++    text.chars().any(|ch| {
++        let cp = ch as u32;
++        ranges.iter().any(|&(start, end)| cp >= start && cp <= end)
++    })
++}
++
+ fn lookup_loaded_face(
+     font_ctx: &Arc<Mutex<FontContext>>,
+     cache: &mut HashMap<(String, bool, u16), Option<(Blob<u8>, u32)>>,
+@@ -824,9 +836,6 @@ pub struct BaseDocument {
+     /// Sticky `(italic, weight)` requests already observed per lowercased family so flushes skip
+     /// the DOM walk when every remaining pending face is already known to be requested.
+     pub(crate) used_font_requests: HashMap<String, Vec<(bool, u16)>>,
+-    /// Sticky after `document.fonts.load()`: the Fonts API is an explicit request, so every
+-    /// declared face is fetched instead of only the ones the styles use.
+-    pub(crate) load_all_font_faces: bool,
+     /// Bumped each time `resolve_stylist` actually traverses dirty elements.
+     pub(crate) style_traversal_epoch: u32,
+     /// Last `style_traversal_epoch` at which unmaterialized pseudo-element content was folded into
+@@ -1097,7 +1106,6 @@ impl BaseDocument {
+             pending_font_faces: Vec::new(),
+             declared_font_faces: HashMap::new(),
+             used_font_requests: HashMap::new(),
+-            load_all_font_faces: false,
+             style_traversal_epoch: 0,
+             last_pseudo_scan_epoch: 0,
+             used_codepoints: Vec::new(),
+@@ -2774,18 +2782,7 @@ impl BaseDocument {
+     /// pending (most pages: one resolve, then the list empties or
+     /// stabilizes to never-used leftovers: those short-circuit
+     /// via the sticky used-set check first).
+-    /// `document.fonts.load()` asks for a font, so every declared face is fetched from now on
+-    /// instead of only the ones the styles use. Sticky: faces declared later fetch too.
+-    pub fn demand_all_font_faces(&mut self) {
+-        self.load_all_font_faces = true;
+-        self.flush_needed_font_faces();
+-    }
+-
+-    pub(crate) fn flush_needed_font_faces(&mut self) {
+-        if self.pending_font_faces.is_empty() {
+-            return;
+-        }
+-        // Register faces inserted via CSSOM directly into pending_font_faces.
++    fn register_pending_declared_faces(&mut self) {
+         for face in &self.pending_font_faces {
+             let entry = DeclaredFontFace {
+                 italic: font_face_is_italic(face.overrides.style),
+@@ -2800,12 +2797,89 @@ impl BaseDocument {
+                 declared.push(entry);
+             }
+         }
++    }
++
++    fn start_pending_font_face_fetch(&self, face: PendingFontFace) {
++        note_unloaded_faces(std::iter::once((
++            face.family_lc.clone(),
++            face.overrides.style,
++        )));
++        fetch_pending_font_face(
++            self.tx.clone(),
++            self.id,
++            &self.net_provider,
++            &self.shell_provider,
++            self.abort_signal.as_ref(),
++            face,
++        );
++    }
++
++    /// `document.fonts.load(font, text)`: fetch the pending `@font-face` entries whose family is
++    /// in `families`, whose style and weight are selected by CSS Fonts 4 §5.2 for
++    /// `(italic, weight)`, and whose `unicode-range` covers at least one character of `text`.
++    /// Scoped to this call: does not enable a sticky load-all mode for the document.
++    pub fn demand_font_faces(
++        &mut self,
++        families: &[String],
++        italic: bool,
++        weight: u16,
++        text: &str,
++    ) {
++        if text.is_empty() || self.pending_font_faces.is_empty() {
++            return;
++        }
++        let wanted: Vec<String> = families
++            .iter()
++            .map(|family| family.trim().to_ascii_lowercase())
++            .filter(|family| !family.is_empty())
++            .collect();
++        if wanted.is_empty() {
++            return;
++        }
++
++        self.register_pending_declared_faces();
++
++        let mut ready: Vec<PendingFontFace> = Vec::new();
++        let declared_map = &self.declared_font_faces;
++        self.pending_font_faces.retain(|face| {
++            if !wanted.iter().any(|want| want == &face.family_lc) {
++                return true;
++            }
++            let declared = declared_map
++                .get(&face.family_lc)
++                .map(Vec::as_slice)
++                .unwrap_or(&[]);
++            let face_italic = font_face_is_italic(face.overrides.style);
++            let matches_style = face_matches_css_selection(
++                declared,
++                italic,
++                weight,
++                face_italic,
++                face.weight_range,
++            );
++            if matches_style && face_covers_text(face.unicode_range.as_deref(), text) {
++                ready.push(face.clone());
++                false
++            } else {
++                true
++            }
++        });
++
++        for face in ready {
++            self.start_pending_font_face_fetch(face);
++        }
++    }
++
++    pub(crate) fn flush_needed_font_faces(&mut self) {
++        if self.pending_font_faces.is_empty() {
++            return;
++        }
++        // Register faces inserted via CSSOM directly into pending_font_faces.
++        self.register_pending_declared_faces();
+
+         // Skip the full DOM walk when every pending face is already matched by a recorded request
+         // (e.g. deferred unicode-range subsets waiting only on new document codepoints).
+-        let load_all = self.load_all_font_faces;
+-        let all_pending_used = load_all
+-            || self.pending_font_faces.iter().all(|f| {
++        let all_pending_used = self.pending_font_faces.iter().all(|f| {
+             let Some(requests) = self.used_font_requests.get(&f.family_lc) else {
+                 return false;
+             };
+@@ -3053,10 +3127,6 @@ impl BaseDocument {
+         let declared_map = &self.declared_font_faces;
+         let used_map = &self.used_font_requests;
+         self.pending_font_faces.retain(|f| {
+-            if load_all {
+-                ready.push(f.clone());
+-                return false;
+-            }
+             let Some(requests) = used_map.get(&f.family_lc) else {
+                 return true;
+             };
+@@ -3120,22 +3190,11 @@ impl BaseDocument {
+         }
+         let mut deferred: Vec<PendingFontFace> = Vec::new();
+         for face in ready {
+-            if !load_all && !self.face_covers_used_text(face.unicode_range.as_deref()) {
++            if !self.face_covers_used_text(face.unicode_range.as_deref()) {
+                 deferred.push(face);
+                 continue;
+             }
+-            note_unloaded_faces(std::iter::once((
+-                face.family_lc.clone(),
+-                face.overrides.style,
+-            )));
+-            fetch_pending_font_face(
+-                self.tx.clone(),
+-                self.id,
+-                &self.net_provider,
+-                &self.shell_provider,
+-                self.abort_signal.as_ref(),
+-                face,
+-            );
++            self.start_pending_font_face_fetch(face);
+         }
+         self.pending_font_faces.extend(deferred);
+     }

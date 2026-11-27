@@ -9,10 +9,6 @@ use std::panic;
 use blitz_dom::node::ChildIds;
 use blitz_dom::{local_name, ns, BaseDocument, LocalName, Namespace, Node, NodeData};
 use blitz_traits::NodeId;
-use ::style::context::QuirksMode;
-use ::style::dom_apis::{
-    element_closest, element_matches, query_selector, MayUseInvalidation, QueryAll,
-};
 use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode, NodeHandleMap};
@@ -1287,8 +1283,6 @@ impl DomHandle {
         selector: &str,
     ) -> Result<Vec<i32>, JsError> {
         self.flush_slot_assignments();
-        use smallvec::SmallVec;
-
         let doc = match self.doc.try_borrow() {
             Ok(d) => d,
             Err(_) => return Ok(Vec::new()),
@@ -1298,26 +1292,20 @@ impl DomHandle {
             .map_err(|e| JsError::new(&format!("{e:?}")))?;
         let Some(root) = self
             .resolve_node_id(root_id)
-            .and_then(|id| doc.get_node(id))
+            .filter(|id| doc.get_node(*id).is_some())
         else {
             return Ok(Vec::new());
         };
 
-        let mut results: SmallVec<[&Node; 128]> = SmallVec::new();
         let matched = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            query_selector::<&Node, QueryAll>(
-                root,
-                &selector_list,
-                &mut results,
-                MayUseInvalidation::Yes,
-            );
+            doc.query_selector_all_in_raw(root, &selector_list)
         }));
-        if matched.is_err() {
+        let Ok(results) = matched else {
             return Ok(Vec::new());
-        }
+        };
         Ok(results
             .into_iter()
-            .map(|n| self.external_node_id_i32(n.id()))
+            .map(|id| self.external_node_id_i32(id))
             .collect())
     }
 
@@ -1354,9 +1342,8 @@ impl DomHandle {
             return Ok(false);
         };
 
-        let quirks = QuirksMode::NoQuirks;
         let m = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            element_matches::<&Node>(&node, &selector_list, quirks)
+            node.matches_selector_raw(&selector_list)
         }));
         Ok(m.unwrap_or(false))
     }
@@ -1378,12 +1365,9 @@ impl DomHandle {
             return Ok(-1);
         };
 
-        let quirks = QuirksMode::NoQuirks;
-        let r = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            element_closest::<&Node>(node, &selector_list, quirks)
-        }));
+        let r = panic::catch_unwind(panic::AssertUnwindSafe(|| node.closest_raw(&selector_list)));
         match r {
-            Ok(Some(matched)) => Ok(self.external_node_id_i32(matched.id())),
+            Ok(Some(matched)) => Ok(self.external_node_id_i32(matched)),
             _ => Ok(-1),
         }
     }

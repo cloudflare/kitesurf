@@ -234,9 +234,7 @@ fn max_linear_scale(t: Affine) -> f64 {
 }
 
 fn ink_bounds(doc: &HtmlDocument, node_id: NodeId) -> Option<kurbo::Rect> {
-    use ::style::properties::generated::longhands::direction::computed_value::T as Direction;
     let node = doc.get_node(node_id)?;
-    let rtl = node.primary_styles()?.get_inherited_box().direction == Direction::Rtl;
     if bounding_rect_for_node(doc, node).width < 0.0 {
         return None;
     }
@@ -246,18 +244,13 @@ fn ink_bounds(doc: &HtmlDocument, node_id: NodeId) -> Option<kurbo::Rect> {
         layout.size.width as f64 * scale,
         layout.size.height as f64 * scale,
     );
-    let o = layout.scrollable_overflow_rect;
+    // Physical in both directions, relative to the inner border edge.
+    let o = layout.scrollable_overflow_rect.rect();
     let b = layout.border;
-    let (x0, x1) = if rtl {
-        let right_edge = layout.size.width - b.right;
-        (right_edge - o.right, right_edge - o.left)
-    } else {
-        (b.left + o.left, b.left + o.right)
-    };
     let content = kurbo::Rect::new(
-        x0 as f64,
+        (b.left + o.left) as f64,
         (b.top + o.top) as f64,
-        x1 as f64,
+        (b.left + o.right) as f64,
         (b.top + o.bottom) as f64,
     )
     .scale_from_origin(scale);
@@ -427,6 +420,7 @@ impl DomHandle {
                     Color::WHITE,
                     None,
                     &Rect::new(0.0, 0.0, w as f64, h as f64),
+                    anyrender::AntiAliasing::Enabled,
                 );
             }
             blitz_paint::paint_scene(&mut scene, base, 1.0, w, h, 0, 0);
@@ -624,7 +618,10 @@ impl DomHandle {
                 {
                     return None;
                 }
-                let pinned = matches!(styles.clone_position(), Position::Fixed | Position::Sticky);
+                let pinned = matches!(
+                    *styles.get_box().get_position(),
+                    Position::Fixed | Position::Sticky
+                );
                 drop(styles);
                 if let Some(r) = pinned.then(|| ink_bounds(&doc, id)).flatten() {
                     // A filter's reach is not modelled: the scroll takes a full frame.
@@ -677,6 +674,7 @@ impl DomHandle {
                     Color::WHITE,
                     None,
                     &Rect::new(0.0, 0.0, w as f64, h as f64),
+                    anyrender::AntiAliasing::Enabled,
                 );
             }
             blitz_paint::paint_scene(&mut scene, base, 1.0, w, h, 0, 0);
@@ -852,6 +850,7 @@ impl DomHandle {
                         Color::WHITE,
                         None,
                         &Rect::new(0.0, 0.0, w as f64, render_h as f64),
+                        anyrender::AntiAliasing::Enabled,
                     );
                 }
                 blitz_paint::paint_scene(&mut scene, base, 1.0, w, render_h, 0, 0);
@@ -1136,6 +1135,7 @@ impl DomHandle {
                     Color::WHITE,
                     None,
                     &Rect::new(0.0, 0.0, w as f64, h as f64),
+                    anyrender::AntiAliasing::Enabled,
                 );
             }
             blitz_paint::paint_scene(&mut scene, base, 1.0, w, h, 0, 0);

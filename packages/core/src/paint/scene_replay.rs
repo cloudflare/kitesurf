@@ -14,7 +14,10 @@ use std::io::Cursor;
 use std::panic::{self, RefUnwindSafe};
 
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
-use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
+use anyrender::{
+    AntiAliasing, BoxShadowKind, Glyph as AnyGlyph, ImageRenderer as _, MaskMode,
+    NonUniformRoundedRect, NonUniformRoundedRectRadii, PaintScene,
+};
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use kurbo::{Affine, BezPath, Point, Shape, Vec2};
 use peniko::{Blob, Color, FontData, ImageAlphaType, ImageData};
@@ -26,8 +29,8 @@ use wasm_bindgen::prelude::*;
 use crate::paint::scene_decode::{self, DecodedResources, ResourceKind};
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use crate::paint::scene_decode::{
-    DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedTransform,
-    SceneVisitor,
+    DecodedBoxShadow, DecodedBoxShadowKind, DecodedCap, DecodedFillRule, DecodedJoin,
+    DecodedMaskMode, DecodedPaint, DecodedPathEl, DecodedTransform, SceneVisitor,
 };
 use crate::paint::scene_record::{
     font_data_key, FONT_DATA_REF_ASSET, FONT_DATA_REF_BLOB, IMAGE_REF_HINT_BYTES,
@@ -678,6 +681,10 @@ struct ReplayVisitor<'a, 'b, S: PaintScene> {
     open_clip_paths: Vec<bool>,
     /// The scene holds text from `on_glyph_text` that the next glyph run must consume.
     glyph_text_pending: bool,
+    /// `on_aliased` turned off anti-aliasing for the next fill or stroke.
+    aliased: bool,
+    /// `on_rect_clip` marked the next clip or mask layer's clip as a rectangle.
+    rect_clip: bool,
 }
 
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
@@ -748,6 +755,11 @@ impl SceneVisitor for LayerComposeScan {
     fn on_push_clip_layer(&mut self, _: DecodedTransform, _: &[DecodedPathEl]) {
         self.depth += 1;
     }
+    // Backends composite a mask layer with DestIn.
+    fn on_push_mask_layer(&mut self, _: DecodedMaskMode, _: DecodedTransform, _: &[DecodedPathEl]) {
+        self.non_source_over = true;
+        self.depth += 1;
+    }
     fn on_pop_layer(&mut self) {
         self.unbalanced |= self.depth == 0;
         self.depth = self.depth.saturating_sub(1);
@@ -799,22 +811,6 @@ impl SceneVisitor for LayerComposeScan {
         _: DecodedTransform,
         _: DecodedPaint,
         _: &[(u32, f32, f32)],
-    ) {
-    }
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "LayerComposeScan implements the ordered KSC0 box-shadow callback."
-    )]
-    fn on_box_shadow(
-        &mut self,
-        _: DecodedTransform,
-        _: f32,
-        _: f32,
-        _: f32,
-        _: f32,
-        _: (u8, u8, u8, u8),
-        _: f32,
-        _: f32,
     ) {
     }
 }
@@ -933,6 +929,14 @@ fn image_sampler() -> ImageSampler {
 
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
+    fn take_anti_aliasing(&mut self) -> AntiAliasing {
+        if std::mem::take(&mut self.aliased) {
+            AntiAliasing::Disabled
+        } else {
+            AntiAliasing::Enabled
+        }
+    }
+
     fn fill_with_paint(
         &mut self,
         rule: Fill,
@@ -940,25 +944,27 @@ impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
         brush_transform: Option<Affine>,
         paint: &DecodedPaint,
         path: &BezPath,
+        aa: AntiAliasing,
     ) {
         match paint {
             DecodedPaint::Solid { r, g, b, a } => {
-                self.scene.fill(rule, t, solid(*r, *g, *b, *a), None, path);
+                self.scene
+                    .fill(rule, t, solid(*r, *g, *b, *a), None, path, aa);
             }
             DecodedPaint::Gradient(g) => {
                 let pg = g.to_peniko_gradient();
-                self.scene.fill(rule, t, &pg, brush_transform, path);
+                self.scene.fill(rule, t, &pg, brush_transform, path, aa);
             }
             DecodedPaint::Image { content_hash } => {
                 if let Some(color) = self.ctx.solid_image(*content_hash) {
-                    self.scene.fill(rule, t, color, None, path);
+                    self.scene.fill(rule, t, color, None, path, aa);
                 } else if let Some(img) = self.ctx.image(*content_hash) {
                     let bt = self.ctx.image_brush_transform(*content_hash);
                     let brush = ImageBrush {
                         image: img.clone(),
                         sampler: image_sampler(),
                     };
-                    self.scene.fill(rule, t, brush.as_ref(), bt, path);
+                    self.scene.fill(rule, t, brush.as_ref(), bt, path, aa);
                 } else {
                     self.missing_images += 1;
                 }
@@ -992,6 +998,15 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
     }
 
     fn on_push_clip_layer(&mut self, transform: DecodedTransform, clip_path: &[DecodedPathEl]) {
+        // A rect reaches the backend as a rect, which anyrender_vello_cpu clips without a
+        // layer, as it does when blitz-paint draws into it directly.
+        if std::mem::take(&mut self.rect_clip) {
+            let rect = bez_path(clip_path).bounding_box();
+            self.scene
+                .push_clip_layer(Fill::NonZero, affine(transform), &rect);
+            self.open_clip_paths.push(false);
+            return;
+        }
         let as_path = self.clip_paths && is_whole_pixel_rect(transform, clip_path);
         if as_path {
             self.scene
@@ -1001,6 +1016,39 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                 .push_clip_layer(Fill::NonZero, affine(transform), &bez_path(clip_path));
         }
         self.open_clip_paths.push(as_path);
+    }
+
+    fn on_push_mask_layer(
+        &mut self,
+        mode: DecodedMaskMode,
+        transform: DecodedTransform,
+        clip_path: &[DecodedPathEl],
+    ) {
+        let mode = match mode {
+            DecodedMaskMode::Alpha => MaskMode::Alpha,
+            DecodedMaskMode::Luminance => MaskMode::Luminance,
+        };
+        if std::mem::take(&mut self.rect_clip) {
+            let rect = bez_path(clip_path).bounding_box();
+            self.scene
+                .push_mask_layer(Fill::NonZero, mode, affine(transform), &rect);
+        } else {
+            self.scene.push_mask_layer(
+                Fill::NonZero,
+                mode,
+                affine(transform),
+                &bez_path(clip_path),
+            );
+        }
+        self.open_clip_paths.push(false);
+    }
+
+    fn on_aliased(&mut self) {
+        self.aliased = true;
+    }
+
+    fn on_rect_clip(&mut self) {
+        self.rect_clip = true;
     }
 
     fn on_pop_layer(&mut self) {
@@ -1025,7 +1073,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         };
         let p = bez_path(path);
         let bt = brush_transform.map(affine);
-        self.fill_with_paint(rule, affine(transform), bt, &paint, &p);
+        let aa = self.take_anti_aliasing();
+        self.fill_with_paint(rule, affine(transform), bt, &paint, &p, aa);
     }
 
     #[allow(
@@ -1065,14 +1114,15 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         let t = affine(transform);
         let bt_wire = brush_transform.map(affine);
         let p = bez_path(path);
+        let aa = self.take_anti_aliasing();
         match &paint {
             DecodedPaint::Solid { r, g, b, a } => {
                 self.scene
-                    .stroke(&style, t, solid(*r, *g, *b, *a), None, &p);
+                    .stroke(&style, t, solid(*r, *g, *b, *a), None, &p, aa);
             }
             DecodedPaint::Gradient(g) => {
                 let pg = g.to_peniko_gradient();
-                self.scene.stroke(&style, t, &pg, bt_wire, &p);
+                self.scene.stroke(&style, t, &pg, bt_wire, &p, aa);
             }
             DecodedPaint::Image { content_hash } => {
                 if let Some(img) = self.ctx.image(*content_hash) {
@@ -1081,7 +1131,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                         image: img.clone(),
                         sampler: image_sampler(),
                     };
-                    self.scene.stroke(&style, t, brush.as_ref(), bt, &p);
+                    self.scene.stroke(&style, t, brush.as_ref(), bt, &p, aa);
                 } else {
                     self.missing_images += 1;
                 }
@@ -1132,6 +1182,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                     t,
                     None,
                     glyph_iter,
+                    AntiAliasing::Enabled,
                 );
             }
             DecodedPaint::Gradient(g) => {
@@ -1148,6 +1199,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                     t,
                     None,
                     glyph_iter,
+                    AntiAliasing::Enabled,
                 );
             }
             DecodedPaint::Image { content_hash } => {
@@ -1168,6 +1220,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                         t,
                         None,
                         glyph_iter,
+                        AntiAliasing::Enabled,
                     );
                 } else {
                     self.missing_images += 1;
@@ -1176,37 +1229,36 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         }
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "ReplayVisitor consumes the ordered KSC0 box-shadow callback fields."
-    )]
     fn on_glyph_text(&mut self, text: &str, glyph_ranges: &[std::ops::Range<usize>]) {
         self.scene.glyph_text(text, glyph_ranges);
         self.glyph_text_pending = true;
     }
 
-    fn on_box_shadow(
-        &mut self,
-        transform: DecodedTransform,
-        rect_x0: f32,
-        rect_y0: f32,
-        rect_x1: f32,
-        rect_y1: f32,
-        rgba: (u8, u8, u8, u8),
-        radius: f32,
-        std_dev: f32,
-    ) {
+    fn on_box_shadow(&mut self, transform: DecodedTransform, shadow: &DecodedBoxShadow) {
+        let [x0, y0, x1, y1] = shadow.rect.map(f64::from);
+        let r = shadow.radii.map(f64::from);
+        let box_shape = NonUniformRoundedRect::new(
+            kurbo::Rect::new(x0, y0, x1, y1),
+            NonUniformRoundedRectRadii {
+                top_left: Vec2::new(r[0], r[1]),
+                top_right: Vec2::new(r[2], r[3]),
+                bottom_right: Vec2::new(r[4], r[5]),
+                bottom_left: Vec2::new(r[6], r[7]),
+            },
+        );
+        let (cr, cg, cb, ca) = shadow.rgba;
         self.scene.draw_box_shadow(
             affine(transform),
-            kurbo::Rect::new(
-                rect_x0 as f64,
-                rect_y0 as f64,
-                rect_x1 as f64,
-                rect_y1 as f64,
-            ),
-            solid(rgba.0, rgba.1, rgba.2, rgba.3),
-            radius as f64,
-            std_dev as f64,
+            &box_shape,
+            Vec2::new(f64::from(shadow.offset.0), f64::from(shadow.offset.1)),
+            f64::from(shadow.spread),
+            f64::from(shadow.std_dev),
+            solid(cr, cg, cb, ca),
+            match shadow.kind {
+                DecodedBoxShadowKind::Outset => BoxShadowKind::Outset,
+                DecodedBoxShadowKind::OutsetUnclipped => BoxShadowKind::OutsetUnclipped,
+                DecodedBoxShadowKind::Inset => BoxShadowKind::Inset,
+            },
         );
     }
 
@@ -1260,6 +1312,8 @@ pub(crate) fn replay_into<S: PaintScene>(
         clip_paths: !composition.non_source_over,
         open_clip_paths: Vec::new(),
         glyph_text_pending: false,
+        aliased: false,
+        rect_clip: false,
     };
     scene_decode::decode(scene_bytes, &mut vis).map_err(|e| e.to_string())?;
     Ok(ReplayStats {
@@ -1314,7 +1368,7 @@ impl SceneRasterBands {
         self.render.render_with(
             target,
             vello_cpu::RasterizerSettings {
-                source_y: self.next_row,
+                offset: (0, -i32::from(self.next_row)),
                 ..Default::default()
             },
         );
@@ -3070,6 +3124,7 @@ mod tests {
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
+            AntiAliasing::Enabled,
         );
         scene.fill(
             Fill::NonZero,
@@ -3077,6 +3132,7 @@ mod tests {
             Color::from_rgba8(200, 30, 30, 255),
             None,
             &Rect::new(0.0, 0.0, 60.0, 40.0),
+            AntiAliasing::Enabled,
         );
         let grad = peniko::Gradient::new_linear((80.0, 10.0), (140.0, 50.0)).with_stops([
             Color::from_rgba8(0, 0, 255, 255),
@@ -3088,6 +3144,7 @@ mod tests {
             &grad,
             None,
             &Rect::new(80.0, 10.0, 140.0, 50.0),
+            AntiAliasing::Enabled,
         );
         scene.stroke(
             &kurbo::Stroke::new(3.0).with_caps(kurbo::Cap::Round),
@@ -3095,6 +3152,7 @@ mod tests {
             Color::from_rgba8(10, 10, 10, 255),
             None,
             &kurbo::Line::new((10.0, 60.0), (150.0, 70.0)),
+            AntiAliasing::Enabled,
         );
         scene.push_clip_layer(
             Fill::NonZero,
@@ -3107,14 +3165,17 @@ mod tests {
             Color::from_rgba8(255, 160, 0, 255),
             None,
             &kurbo::Circle::new((55.0, 92.0), 30.0),
+            AntiAliasing::Enabled,
         );
         scene.pop_layer();
         scene.draw_box_shadow(
             Affine::IDENTITY,
-            Rect::new(100.0, 80.0, 140.0, 105.0),
-            Color::from_rgba8(0, 0, 0, 128),
-            4.0,
+            &kurbo::RoundedRect::from_rect(Rect::new(100.0, 80.0, 140.0, 105.0), 4.0).into(),
+            Vec2::ZERO,
+            0.0,
             3.0,
+            Color::from_rgba8(0, 0, 0, 128),
+            BoxShadowKind::OutsetUnclipped,
         );
         if let Some(font) = font {
             let glyphs = [
@@ -3146,6 +3207,7 @@ mod tests {
                 Affine::IDENTITY,
                 None,
                 glyphs.iter().copied(),
+                AntiAliasing::Enabled,
             );
         }
         if let Some(img) = img {
@@ -3159,6 +3221,7 @@ mod tests {
                 brush.as_ref(),
                 None,
                 &Rect::new(0.0, 0.0, img.width as f64, img.height as f64),
+                AntiAliasing::Enabled,
             );
         }
     }
@@ -3296,6 +3359,7 @@ mod tests {
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, width as f64, height as f64),
+            AntiAliasing::Enabled,
         );
         for y in [128.0, 2048.0, 3840.0] {
             scene.fill(
@@ -3304,6 +3368,7 @@ mod tests {
                 Color::from_rgba8(40, 150, 240, 180),
                 None,
                 &Rect::new(4.3, y - 11.2, 1200.7, y + 19.8),
+                AntiAliasing::Enabled,
             );
             scene.draw_glyphs(
                 &font,
@@ -3322,6 +3387,7 @@ mod tests {
                     y: y as f32 + 5.0,
                 }]
                 .into_iter(),
+                AntiAliasing::Enabled,
             );
         }
         let fonts = scene.drain_font_bytes();
@@ -3349,6 +3415,7 @@ mod tests {
             Color::from_rgba8(40, 150, 240, 255),
             None,
             &Rect::new(0.0, 0.0, width as f64, height as f64),
+            AntiAliasing::Enabled,
         );
         let raster = SceneRasterizer::new();
         let bytes = raster.rasterize(&scene.finish_framed(), "png", 80, false);
@@ -3391,6 +3458,7 @@ mod tests {
             Color::from_rgba8(40, 150, 240, 180),
             None,
             &Rect::new(4.3, 119.2, 135.7, 251.8),
+            AntiAliasing::Enabled,
         );
         scene.draw_glyphs(
             &font,
@@ -3409,6 +3477,7 @@ mod tests {
                 y: 135.0,
             }]
             .into_iter(),
+            AntiAliasing::Enabled,
         );
         let images = scene.drain_rbi_images();
         let fonts = scene.drain_font_bytes();
@@ -3478,6 +3547,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, width as f64, height as f64),
+            AntiAliasing::Enabled,
         );
         let images = scene.drain_rbi_images();
         let scene = scene.finish_framed();
@@ -3498,6 +3568,7 @@ mod tests {
             Color::from_rgba8(30, 160, 220, 127),
             None,
             &Rect::new(2.3, 119.2, 17.8, 252.8),
+            AntiAliasing::Enabled,
         );
         let scene = scene.finish_framed();
         let raster = SceneRasterizer::new();
@@ -3525,6 +3596,7 @@ mod tests {
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, 4.0, 3855.0),
+            AntiAliasing::Enabled,
         );
         let scene = scene.finish_framed();
         let raster = SceneRasterizer::new();
@@ -3574,6 +3646,7 @@ mod tests {
                 Color::from_rgba8(40, 120, 210, 180),
                 None,
                 &Rect::new(1.0, 39_900.0, 7.0, 40_000.0),
+                AntiAliasing::Enabled,
             );
         };
         let mut direct = vec![0; width as usize * height as usize * 4];
@@ -3586,6 +3659,7 @@ mod tests {
             Color::from_rgba8(40, 120, 210, 180),
             None,
             &Rect::new(1.0, 39_900.0, 7.0, 40_000.0),
+            AntiAliasing::Enabled,
         );
         let raster = SceneRasterizer::new();
         let mut bands = raster.start_bands(&scene.finish_framed()).unwrap();
@@ -3683,6 +3757,7 @@ mod tests {
                     x,
                     y: 30.0,
                 }),
+                AntiAliasing::Enabled,
             );
         };
         let mut rec = RecordingScene::for_pdf();
@@ -3823,6 +3898,7 @@ mod tests {
             color,
             None,
             &Rect::new(0.0, 0.0, w as f64, h as f64),
+            AntiAliasing::Enabled,
         );
         rec.finish_framed()
     }
@@ -3927,7 +4003,14 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(W, H, 0, 0);
         let fill = |rec: &mut RecordingScene, color, rect: Rect| {
-            rec.fill(Fill::NonZero, Affine::IDENTITY, color, None, &rect)
+            rec.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                color,
+                None,
+                &rect,
+                AntiAliasing::Enabled,
+            )
         };
         fill(
             &mut rec,
@@ -3953,6 +4036,7 @@ mod tests {
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
+            AntiAliasing::Enabled,
         );
         let base = r.rasterize_and_retain(
             &rec.finish_framed(),
@@ -3977,6 +4061,7 @@ mod tests {
             Color::from_rgba8(0, 200, 0, 128),
             None,
             &Rect::new(0.0, 0.0, 16.0, 16.0),
+            AntiAliasing::Enabled,
         );
         for y in 8..24usize {
             for x in 8..24usize {
@@ -4000,7 +4085,14 @@ mod tests {
             rec.set_viewport(W, H, 0, 0);
             let bounds = Rect::new(0.0, 0.0, W as f64, H as f64);
             if erase {
-                rec.fill(Fill::NonZero, Affine::IDENTITY, Color::WHITE, None, &bounds);
+                rec.fill(
+                    Fill::NonZero,
+                    Affine::IDENTITY,
+                    Color::WHITE,
+                    None,
+                    &bounds,
+                    AntiAliasing::Enabled,
+                );
             }
             rec.push_layer(
                 Fill::NonZero,
@@ -4024,6 +4116,7 @@ mod tests {
                 Color::from_rgba8(255, 0, 0, 255),
                 None,
                 &bounds,
+                AntiAliasing::Enabled,
             );
             rec.pop_layer();
             let r = SceneRasterizer::new();
@@ -4071,7 +4164,14 @@ mod tests {
                     Color::from_rgba8((row * 37 % 256) as u8, (col * 53 % 256) as u8, 128, 255);
                 let (cx, cy) = ((col * CELL - x) as f64, (row * CELL - y) as f64);
                 let cell = Rect::new(cx, cy, cx + CELL as f64, cy + CELL as f64);
-                rec.fill(Fill::NonZero, Affine::IDENTITY, color, None, &cell);
+                rec.fill(
+                    Fill::NonZero,
+                    Affine::IDENTITY,
+                    color,
+                    None,
+                    &cell,
+                    AntiAliasing::Enabled,
+                );
             }
         }
         rec.finish_framed()
@@ -4206,6 +4306,7 @@ mod tests {
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
+            AntiAliasing::Enabled,
         );
         scene.push_clip_layer(
             Fill::NonZero,
@@ -4223,6 +4324,7 @@ mod tests {
                 Color::from_rgba8(r, g, b, a),
                 None,
                 &rect,
+                AntiAliasing::Enabled,
             );
         }
         scene.pop_layer();
@@ -4235,6 +4337,7 @@ mod tests {
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
+            AntiAliasing::Enabled,
         );
         scene.push_clip_layer(
             Fill::NonZero,
@@ -4247,6 +4350,7 @@ mod tests {
             Color::from_rgba8(255, 0, 0, 255),
             None,
             &Rect::new(10.0, 10.0, 110.0, 90.0),
+            AntiAliasing::Enabled,
         );
         let hole = Rect::new(40.0, 30.0, 80.0, 60.0);
         scene.push_layer(
@@ -4258,7 +4362,14 @@ mod tests {
             None,
             None,
         );
-        scene.fill(Fill::NonZero, Affine::IDENTITY, Color::BLACK, None, &hole);
+        scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            Color::BLACK,
+            None,
+            &hole,
+            AntiAliasing::Enabled,
+        );
         scene.pop_layer();
         scene.pop_layer();
     }
@@ -4339,6 +4450,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, img.width as f64, img.height as f64),
+            AntiAliasing::Enabled,
         );
     }
 
@@ -4402,6 +4514,7 @@ mod tests {
             Affine::IDENTITY,
             skew,
             glyphs.iter().copied(),
+            AntiAliasing::Enabled,
         );
     }
 
@@ -4830,6 +4943,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, w as f64, h as f64),
+            AntiAliasing::Enabled,
         );
         let images = rec.drain_rbi_images();
         let framed = rec.finish_framed();
@@ -4887,6 +5001,7 @@ mod tests {
                 brush.as_ref(),
                 None,
                 &Rect::new(0.0, 0.0, w as f64, h as f64),
+                AntiAliasing::Enabled,
             );
             let images = rec.drain_rbi_images();
             (rec.finish_framed(), images)
@@ -4928,6 +5043,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, 1.0, 1.0),
+            AntiAliasing::Enabled,
         );
         let images = rec.drain_rbi_images();
         let framed = rec.finish_framed();
@@ -5005,6 +5121,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, w as f64, h as f64),
+            AntiAliasing::Enabled,
         );
         let images = rec.drain_rbi_images();
         let framed = rec.finish_framed();
@@ -5065,6 +5182,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, enc.width as f64, enc.height as f64),
+            AntiAliasing::Enabled,
         );
         let images = rec.drain_rbi_images();
         let (hash, info) = &images[0];

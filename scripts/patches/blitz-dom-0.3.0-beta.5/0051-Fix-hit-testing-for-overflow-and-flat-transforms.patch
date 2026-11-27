@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 17 Sep 2026 22:08:03 +0100
+Subject: [PATCH] Fix hit testing for overflow and flat transforms
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Node::hit_inner may legitimately descend into a node whose border box
+does not contain the point: matches_content, matches_overflow and
+matches_rehomed exist so text and boxes that overflow their parent stay
+hittable. The inline branch then asked parley for the cluster under the
+point, and Cluster::from_point_exact is exact in the inline axis only:
+line_for_offset clamps a block offset outside the layout onto the first
+or last line. So a point thousands of pixels above an inline root hit
+whatever glyph shared its x on line 0.
+
+Wikipedia reproduced it constantly: an abspos descendant hoists the
+reference list's scrollable overflow up the page, the walk descended
+into reference <li>s for points in the lead paragraph, and every drag
+there resolved its end caret 17,000px down and selected the whole
+article.
+
+Require the point's block coordinate to fall inside the matched line.
+
+hit_inner maps the point into a transformed node through the transform's
+inverse. A singular transform (scale(0) along either axis, as Material's
+line ripple ::after uses at rest) has no inverse: kurbo returns NaN
+coordinates, and every negated bounds check below treats NaN as inside.
+The collapsed box then answered for every point on the page. On Google
+Flights it sat above every control and took every click.
+
+CSS Transforms does not render such a box, so neither it nor its
+descendants are hit. A matrix whose determinant is within f64::EPSILON
+of zero counts as singular.
+
+Co-authored-by: Rui Figueira <rfigueira@cloudflare.com>
+Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
+---
+ src/node/node.rs | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index e8491dc..bc3d65a 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1869,6 +1869,10 @@ impl Node {
+         let mut y = y - self.final_layout().location.y + self.scroll_offset().y as f32;
+
+         if let Some(t) = self.transform().as_deref() {
++            // Only a singular matrix has no inverse; small nonzero scales still map points.
++            if t.determinant() == 0.0 {
++                return None;
++            }
+             let p = t.inverse() * kurbo::Point::new(x as f64 * scale, y as f64 * scale);
+             x = (p.x / scale) as f32;
+             y = (p.y / scale) as f32;
+@@ -2073,9 +2077,24 @@ impl Node {
+                 let scale = layout.scale();
+                 let y = y - ild.block_offset;
+
++                // Parley's `from_point_exact` is exact in the inline axis
++                // only: `line_for_offset` clamps a block offset above the
++                // first line or below the last one onto that line. The
++                // descent above reaches nodes whose box does not contain
++                // the point (matches_content / matches_overflow /
++                // matches_rehomed exist for that), so without a block-axis
++                // check a pointer 17,000px above a long reference list
++                // hits the reference text whose x-range it shares, and
++                // every drag in the lead paragraph selects the article.
+                 if !clips_point
+                     && let Some((cluster, _side)) =
+                         Cluster::from_point_exact(layout, x * scale, y * scale)
++                    && {
++                        let line = cluster.line();
++                        let m = line.metrics();
++                        let by = y * scale;
++                        by >= m.block_min_coord && by < m.block_max_coord
++                    }
+                 {
+                     let node_id = cluster.style().brush.id;
+                     if let Some(text_node) = self.tree().get(node_id)

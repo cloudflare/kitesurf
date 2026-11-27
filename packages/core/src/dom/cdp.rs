@@ -4,6 +4,7 @@
 
 //! CDP node descriptions and the not-rendered node scan.
 
+use blitz_dom::CopyStyleGetters as _;
 use blitz_dom::{ns, BaseDocument, Node, NodeData};
 use blitz_dom::node::{Attribute, ElementData, ShadowRootMode};
 use blitz_traits::NodeId;

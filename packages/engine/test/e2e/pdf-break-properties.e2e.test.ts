@@ -50,7 +50,7 @@ test("break-before:page forces one PDF page per section", async ({ page }) => {
   );
 
   expect(printed.hash, "printToPDF bytes").toBe(
-    "d921d2c9ec05a0d9b945a99a7780e0eadf84c172a731358beb5700734f0cea88",
+    "f62f70b2c10a1ded5aa4382771ead99dc0dea6dfcc74bc313d4a277d12d807b7",
   );
   expect(printed.pages).toBe(3);
 }, 120_000);
@@ -70,7 +70,7 @@ test("break-inside:avoid moves blocks the heuristic would cut", async ({ page })
   );
 
   expect(printed.hash, "printToPDF bytes").toBe(
-    "d99517aa24982082ae7414450e4ccfed58fbcb65a1d64f5b6b5803fe04b8e557",
+    "3ecbc951780bb11759c8941afcc76efdf6b894ebcab0efe31b62b5e0c86d04d0",
   );
   expect(printed.pages).toBe(3);
 }, 120_000);

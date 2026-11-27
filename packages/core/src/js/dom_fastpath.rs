@@ -677,14 +677,9 @@ enum QueryOut<T> {
     Bool(bool),
 }
 
-// The same stylo entry points DomHandle's querySelector*/matches/closest use.
+// The same blitz-dom entry points DomHandle's querySelector*/matches/closest use.
 // None (bad selector, dropped node, matcher panic) leaves the answer to the shim.
 fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
-    use ::style::context::QuirksMode;
-    use ::style::dom_apis::{
-        element_closest, element_matches, query_selector, MayUseInvalidation, QueryAll, QueryFirst,
-    };
-    use blitz_dom::Node;
     BINDING.with(|b| {
         let b = b.borrow();
         let doc = b.as_ref()?.doc.upgrade()?;
@@ -711,35 +706,16 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                 .query_selector_all(sel)
                 .ok()
                 .map(|ids| QueryOut::Nodes(ids.into_iter().collect())),
-            Query::First => {
-                let mut out: Option<&Node> = None;
-                query_selector::<&Node, QueryFirst>(
-                    node,
-                    list.as_ref()?,
-                    &mut out,
-                    MayUseInvalidation::Yes,
-                );
-                Some(QueryOut::Node(out.map(|n| n.id())))
-            }
-            Query::All => {
-                let mut out: smallvec::SmallVec<[&Node; 128]> = smallvec::SmallVec::new();
-                query_selector::<&Node, QueryAll>(
-                    node,
-                    list.as_ref()?,
-                    &mut out,
-                    MayUseInvalidation::Yes,
-                );
-                Some(QueryOut::Nodes(out.into_iter().map(|n| n.id()).collect()))
-            }
-            Query::Matches => Some(QueryOut::Bool(element_matches::<&Node>(
-                &node,
-                list.as_ref()?,
-                QuirksMode::NoQuirks,
-            ))),
-            Query::Closest => Some(QueryOut::Node(
-                element_closest::<&Node>(node, list.as_ref()?, QuirksMode::NoQuirks)
-                    .map(|n| n.id()),
+            Query::First => Some(QueryOut::Node(
+                doc.query_selector_in_raw(internal, list.as_ref()?),
             )),
+            Query::All => Some(QueryOut::Nodes(
+                doc.query_selector_all_in_raw(internal, list.as_ref()?)
+                    .into_iter()
+                    .collect(),
+            )),
+            Query::Matches => Some(QueryOut::Bool(node.matches_selector_raw(list.as_ref()?))),
+            Query::Closest => Some(QueryOut::Node(node.closest_raw(list.as_ref()?))),
         }))
         .ok()
         .flatten()

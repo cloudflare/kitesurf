@@ -70,32 +70,33 @@ All plumbing git invocations run with `GIT_CONFIG_GLOBAL=/dev/null` /
 
 | Crate                 | Version        | Upstream                                             | Source           |
 | --------------------- | -------------- | ---------------------------------------------------- | ---------------- |
-| `parley`              | `0.12.0`       | `linebender/parley`, path `parley/`                  | registry tarball |
-| `parley_engine`       | `0.12.0`       | `linebender/parley`, path `parley_engine/`           | registry tarball |
-| `blitz-dom`           | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-dom/`       | registry tarball |
-| `blitz-paint`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-paint/`     | registry tarball |
-| `blitz-html`          | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-html/`      | registry tarball |
-| `blitz-traits`        | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-traits/`    | registry tarball |
-| `anyrender`           | `0.14.0`       | `DioxusLabs/anyrender`, path `crates/anyrender/`     | registry tarball |
-| `anyrender_svg`       | `0.15.0`       | `DioxusLabs/anyrender`, path `crates/anyrender_svg/` | registry tarball |
-| `anyrender_vello_cpu` | `0.18.0`       | `DioxusLabs/anyrender`                               | registry tarball |
-| `taffy`               | `0.15.0`       | `DioxusLabs/taffy`                                   | registry tarball |
-| `stylo_taffy`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/stylo_taffy/`     | registry tarball |
-| `stylo`               | `0.22.0`       | servo `stylo`                                        | registry tarball |
-| `selectors`           | `0.41.0`       | servo `selectors`                                    | registry tarball |
+| `parley`              | `0.13.0`       | `linebender/parley`, path `parley/`                  | registry tarball |
+| `parley_engine`       | `0.13.0`       | `linebender/parley`, path `parley_engine/`           | registry tarball |
+| `blitz-dom`           | `0.3.0-beta.5` | `DioxusLabs/blitz`, path `packages/blitz-dom/`       | registry tarball |
+| `blitz-paint`         | `0.3.0-beta.5` | `DioxusLabs/blitz`, path `packages/blitz-paint/`     | registry tarball |
+| `blitz-html`          | `0.3.0-beta.5` | `DioxusLabs/blitz`, path `packages/blitz-html/`      | registry tarball |
+| `blitz-traits`        | `0.3.0-beta.5` | `DioxusLabs/blitz`, path `packages/blitz-traits/`    | registry tarball |
+| `anyrender`           | `0.15.1`       | `DioxusLabs/anyrender`, path `crates/anyrender/`     | registry tarball |
+| `anyrender_vello_cpu` | `0.19.0`       | `DioxusLabs/anyrender`                               | registry tarball |
+| `taffy`               | `0.16.0`       | `DioxusLabs/taffy`                                   | registry tarball |
+| `stylo_taffy`         | `0.3.0-beta.5` | `DioxusLabs/blitz`, path `packages/stylo_taffy/`     | registry tarball |
+| `stylo`               | `0.24.0`       | servo `stylo`                                        | registry tarball |
+| `selectors`           | `0.43.0`       | servo `selectors`                                    | registry tarball |
 | `boa_ast`             | `0.22.0`       | `boa-dev/boa`, path `core/ast/`                      | registry tarball |
 | `boa_interner`        | `0.22.0`       | `boa-dev/boa`, path `core/interner/`                 | registry tarball |
 | `boa_gc`              | `0.22.0`       | `boa-dev/boa`, path `core/gc/`                       | registry tarball |
 | `boa_engine`          | `0.22.0`       | `boa-dev/boa`, path `core/engine/`                   | registry tarball |
 | `boa_parser`          | `0.22.0`       | `boa-dev/boa`, path `core/parser/`                   | registry tarball |
-| `usvg`                | `0.48.1`       | `linebender/resvg`, path `crates/usvg/`              | registry tarball |
-| `vello_common`        | `0.3.0`        | `linebender/vello`, path `vello_common/`             | registry tarball |
-| `vello_cpu`           | `0.3.0`        | `linebender/vello`, path `vello_cpu/`                | registry tarball |
+| `usvg`                | `0.50.0`       | `linebender/resvg`, path `crates/usvg/`              | registry tarball |
+| `vello_common`        | `0.4.0`        | `linebender/vello`, path `vello_common/`             | registry tarball |
+| `vello_cpu`           | `0.4.0`        | `linebender/vello`, path `vello_cpu/`                | registry tarball |
 | `ratatui-image`       | `8.1.1`        | `benjajaja/ratatui-image`                            | registry tarball |
 | `jpeg-encoder`        | `0.7.0`        | `vstroebel/jpeg-encoder`                             | registry tarball |
 
 fontique is no longer patched: 0.12 offers every face with the best match's
-attributes, which is what our unicode-range-subset patch did.
+attributes, which is what our unicode-range-subset patch did. anyrender_svg is
+no longer patched either: 0.16 composites SVG masks through
+`PaintScene::push_mask_layer`, which our mask patch approximated.
 
 ## What each series carries
 
@@ -123,7 +124,8 @@ One-line orientation (see each series' patches for the full why):
   inline metrics/positioning, font loading, `clear_style_snapshots`
   cascade-panic recovery, …); compact node storage, offscreen inline-layout
   eviction and summary replay, release of hidden subtree box state, box-only
-  derived child lists, and compact resident and evicted inline text state.
+  derived child lists, and compact resident and evicted inline text state;
+  `BlitzNode` exported for embedders that call Stylo's DOM APIs.
 - **blitz-html** — the XHTML sniff stops at the first non-root start
   tag outside comments and quoted literals, so text later on a minified
   one-line page cannot route it to the XML parser (`core/src/dom/scan.rs`
@@ -133,7 +135,9 @@ One-line orientation (see each series' patches for the full why):
 - **blitz-traits** — `NodeId` stored as two `u32` halves, so node storage
   is 4-byte aligned on wasm32 and node slots carry no padding.
 - **blitz-paint** — paints the span-fragment decorations; canvas
-  background propagation; SVG background-repeat tiling; and the
+  background propagation, filled only over the painted surface; SVG
+  background-repeat tiling; unblurred shadows of corner-shaped boxes
+  along their shape; and the
   `begin_part`/`end_part` markers a consumer needs to know what a rect
   is FOR (see `anyrender` below); accessors for compact element data,
   on-demand rebuilding of evicted inline layouts and box-only child-list
@@ -144,16 +148,14 @@ One-line orientation (see each series' patches for the full why):
   geometry, plus the form-control state (`checked`) that pixels cannot
   reveal. Consumed by the scene wire (`scene_record.rs`). Also
   `push_clip_path`/`pop_clip_path`, defaulted to a clip layer, so a
-  backend can clip each draw instead of compositing a group.
-- **anyrender_svg** — composites alpha masks and white luminance masks
-  through an isolated layer and a `SrcIn` layer, instead of drawing a
-  masked group unmasked. Other luminance masks and nested mask
-  references still draw unmasked. Upstreamable.
+  backend can clip each draw instead of compositing a group. Shadow spread
+  radii also grow by their coverage of the box (css-backgrounds-4).
 - **anyrender_vello_cpu** - implements `push_clip_path` with vello_cpu's
   clip paths. The scene replayer uses it for whole-pixel rect clips,
   where it gives the same pixels as a clip layer without the extra
   layer composite (`core/src/paint/scene_replay.rs`). Also skips premultiplying
-  opaque images, such as canvas frames.
+  opaque images, such as canvas frames, and blurs box shadows with CSS's
+  Gaussian deviation and each corner's own radius.
 - **taffy** — layout fixes for floats, grid sizing, absolute grid
   placement, a host rounding step, lazy per-node cache allocation, and packed
   populated measurement-cache slots.
@@ -190,15 +192,15 @@ plain git:
 pnpm run vendor:apply
 
 # Edit, e.g.:
-$EDITOR packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4/src/document.rs
+$EDITOR packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.5/src/document.rs
 
 # Iterate: cargo picks up edits in place. Bazel does not, until the regen.
 (cd packages/core && cargo check --target wasm32-unknown-unknown)
 
 # Once the fix is good, COMMIT it in the vendor tree. The commit
 # message becomes the patch — subject + body explaining why.
-git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4 add -A
-git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4 commit
+git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.5 add -A
+git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.5 commit
 
 # Write the series back out:
 pnpm run vendor:regen                 # all crates

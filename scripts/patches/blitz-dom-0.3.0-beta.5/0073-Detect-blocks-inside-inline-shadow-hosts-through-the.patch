@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 16 Nov 2026 12:00:00 +0000
+Subject: [PATCH] Detect blocks inside inline shadow hosts through the flat
+ tree
+
+A block descendant breaks its inline ancestors out of the inline
+formatting context. is_or_contains_block walked the light-DOM children,
+so it missed blocks in a shadow tree or assigned to a slot, and an inline
+host around them shrink-wrapped instead of filling its container.
+
+Walk the flat tree. (Upstream already looks through display: contents.)
+---
+ src/node/node.rs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 2098425..8fafce0 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -615,7 +615,8 @@ impl Node {
+     }
+
+     fn any_child_is_or_contains_block(&self) -> bool {
+-        self.children
++        // Flat tree: an inline shadow host's blocks live in its shadow root.
++        self.flat_children()
+             .iter()
+             .any(|&child_id| self.tree()[child_id].is_or_contains_block())
+     }

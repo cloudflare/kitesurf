@@ -1,0 +1,109 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 15 Sep 2026 21:19:03 +0100
+Subject: [PATCH] Enable container queries and cq units in servo
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+cq* units were gecko-gated at tokenization, so any calc() containing
+them failed to parse in the servo build. WPT's sign(2cqw - 10px) probes
+across css-color, css-flexbox, css-fonts, css-lists and css-grid hit
+this. The container-size-query plumbing itself is feature-agnostic and
+falls back to the small viewport when there is no container, so only the
+parse gate needs to go.
+
+The @container rule and the container shorthand were gated to the gecko
+build, so the servo build rejected them at parse time. Drop the gates.
+The shorthand serializes its container-type only when that longhand is
+present and not normal.
+
+Anchor positioning needs no patch: stylo 0.24 generates the anchor
+properties for servo behind layout.css.anchor-positioning.enabled, the
+same pref the anchor() and anchor-size() parsers check.
+
+Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
+Co-authored-by: bpereira <bpereira@cloudflare.com>
+---
+ properties/shorthands.rs   |  8 +++++---
+ properties/shorthands.toml |  1 -
+ stylesheets/rule_parser.rs |  2 +-
+ values/specified/length.rs | 13 +++++++------
+ 4 files changed, 13 insertions(+), 11 deletions(-)
+
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index d389ffc..3d20aa6 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -542,7 +542,6 @@ pub mod border {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod container {
+     use super::*;
+     pub use crate::properties::generated::shorthands::container::*;
+@@ -572,9 +571,12 @@ pub mod container {
+             W: fmt::Write,
+         {
+             self.container_name.to_css(dest)?;
+-            if !self.container_type.is_normal() {
++            if self
++                .container_type
++                .is_some_and(|container_type| !container_type.is_normal())
++            {
+                 dest.write_str(" / ")?;
+-                self.container_type.to_css(dest)?;
++                self.container_type.unwrap().to_css(dest)?;
+             }
+             Ok(())
+         }
+diff --git a/properties/shorthands.toml b/properties/shorthands.toml
+index b470233..b467500 100644
+--- a/properties/shorthands.toml
++++ b/properties/shorthands.toml
+@@ -209,7 +209,6 @@ spec = "https://wicg.github.io/overscroll-behavior/#overscroll-behavior-properti
+ kind = "two_properties"
+
+ [container]
+-engine = "gecko"
+ sub_properties = ["container-name", "container-type"]
+ spec = "https://drafts.csswg.org/css-contain-3/#container-shorthand"
+
+diff --git a/stylesheets/rule_parser.rs b/stylesheets/rule_parser.rs
+index 63ce411..4349f50 100644
+--- a/stylesheets/rule_parser.rs
++++ b/stylesheets/rule_parser.rs
+@@ -282,7 +282,7 @@ impl AtRuleType {
+             "counter-style" if cfg!(feature = "gecko") => Self::CounterStyle,
+             "media" => Self::Media,
+             "custom-media" if crate::pref!("layout.css.custom-media.enabled") => Self::CustomMedia,
+-            "container" if cfg!(feature = "gecko") => Self::Container,
++            "container" => Self::Container,
+             "supports" => Self::Supports,
+             "keyframes" => Self::Keyframes(None),
+             "-webkit-keyframes" => Self::Keyframes(Some(VendorPrefix::WebKit)),
+diff --git a/values/specified/length.rs b/values/specified/length.rs
+index 3be1ecf..87b48a1 100644
+--- a/values/specified/length.rs
++++ b/values/specified/length.rs
+@@ -188,12 +188,13 @@ impl LengthUnit {
+             "dvi" if !in_page_rule => Self::Dvi,
+             // Container query lengths. Inherit the limitation from viewport units since
+             // we may fall back to them.
+-            "cqw" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqw,
+-            "cqh" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqh,
+-            "cqi" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqi,
+-            "cqb" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqb,
+-            "cqmin" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmin,
+-            "cqmax" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmax,
++            // Servo uses the same container-size plumbing and viewport fallback.
++            "cqw" if !in_page_rule => Self::Cqw,
++            "cqh" if !in_page_rule => Self::Cqh,
++            "cqi" if !in_page_rule => Self::Cqi,
++            "cqb" if !in_page_rule => Self::Cqb,
++            "cqmin" if !in_page_rule => Self::Cqmin,
++            "cqmax" if !in_page_rule => Self::Cqmax,
+             _ => return Err(()),
+         })
+     }

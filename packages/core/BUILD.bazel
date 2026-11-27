@@ -146,7 +146,7 @@ rust_test(
 
 rust_test(
     name = "taffy_test",
-    crate = "@crates__taffy-0.15.0//:taffy",
+    crate = "@crates__taffy-0.16.0//:taffy",
     # rust_test does not inherit the library's features. taffy_tree adds the TaffyTree that the
     # patch series' regression tests lay their cases out in.
     crate_features = [
@@ -161,19 +161,22 @@ rust_test(
         "std",
         "taffy_tree",
     ],
-    deps = ["@crates__slotmap-1.1.1//:slotmap_std"],  # no other crate turns on slotmap's std
+    deps = [
+        "@crates__slotmap-1.1.1//:slotmap_std",  # no other crate turns on slotmap's std
+        "@crates//:rustc-hash",  # taffy_tree's hasher since taffy 0.16
+    ],
 )
 
 rust_test(
     name = "vello_common_test",
-    crate = "@crates__vello_common-0.3.0//:vello_common",
+    crate = "@crates__vello_common-0.4.0//:vello_common",
     # rust_test does not inherit the library's features, and the crate needs std or libm.
     crate_features = ["std"],
 )
 
 build_test(
     name = "vello_cpu_fallback_test",
-    targets = ["@crates__vello_cpu-0.3.0//:vello_cpu_fallback"],
+    targets = ["@crates__vello_cpu-0.4.0//:vello_cpu_fallback"],
 )
 
 test_suite(

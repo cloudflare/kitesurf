@@ -4,6 +4,7 @@
 
 #![cfg(test)]
 
+use blitz_dom::CopyStyleGetters as _;
 use crate::DomHandle;
 use blitz_dom::NodeId;
 

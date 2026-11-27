@@ -1,0 +1,133 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Tue, 28 Jul 2026 19:16:10 +0100
+Subject: [PATCH] Honour a zero viewBox as disabling rendering
+
+SVG2 coords.html#ViewBoxAttribute: a viewBox whose width or height is
+zero disables rendering of the element. usvg rendered such elements as
+though the attribute were absent, because both cases arrive as None --
+svgtypes' ViewBox::from_str rejects a non-positive extent as
+InvalidSize, so parse_viewbox() cannot tell a zero viewBox from a
+missing one.
+
+has_rendering_disabling_viewbox() reads the RAW attribute and reports
+that distinction. Only a well-formed four-number value with a zero
+extent disables rendering. A negative extent is an error, and error
+processing ignores the attribute, so the element renders its normal
+view, the same as for an unparseable value. WPT
+viewBox-baseVal-change-invalid flips a valid viewBox to width -100 and
+expects the content to come back, unscaled.
+
+Applied at the four places that were wrong: the svg element (root and
+nested), a symbol referenced by use, and a marker, where returning None
+drops only the marker, leaving the decorated shape's stroke. A pattern
+is also disabled, which resolves the paint to None so the referencing
+element paints nothing rather than a black fallback (the caller's
+from_fallback yields no paint when the FuncIRI has no fallback).
+---
+ src/parser/converter.rs    | 30 ++++++++++++++++++++++++++++++
+ src/parser/marker.rs       |  6 ++++++
+ src/parser/paint_server.rs |  7 +++++++
+ src/parser/use_node.rs     |  6 ++++++
+ 4 files changed, 49 insertions(+)
+
+diff --git a/src/parser/converter.rs b/src/parser/converter.rs
+index 104b0f8..b65366d 100644
+--- a/src/parser/converter.rs
++++ b/src/parser/converter.rs
+@@ -212,6 +212,31 @@ impl<'a, 'input: 'a> SvgNode<'a, 'input> {
+         NonZeroRect::from_xywh(vb.x as f32, vb.y as f32, vb.w as f32, vb.h as f32)
+     }
+
++    /// Whether a well-formed `viewBox` has a zero width or height, which
++    /// disables rendering (SVG2 coords.html#ViewBoxAttribute). Negative or
++    /// malformed values are ignored, so the element renders normally. Reads
++    /// the raw attribute because `svgtypes::ViewBox::from_str` rejects a zero
++    /// extent, so `parse_viewbox()` cannot tell it from an absent attribute.
++    pub fn has_rendering_disabling_viewbox(&self) -> bool {
++        let Some(raw) = self.attribute::<&str>(AId::ViewBox) else {
++            return false;
++        };
++        // Parse the list so malformed separators cannot disappear between values.
++        let mut parser = svgtypes::NumberListParser::from(raw);
++        let mut nums = [0.0; 4];
++        for num in &mut nums {
++            let Some(Ok(value)) = parser.next() else {
++                return false;
++            };
++            *num = value;
++        }
++        if parser.next().is_some() {
++            return false;
++        }
++
++        nums[2] >= 0.0 && nums[3] >= 0.0 && (nums[2] == 0.0 || nums[3] == 0.0)
++    }
++
+     pub fn resolve_length(&self, aid: AId, state: &State, def: f32) -> f32 {
+         debug_assert!(
+             !matches!(aid, AId::BaselineShift | AId::FontSize),
+@@ -548,6 +573,11 @@ pub(crate) fn convert_element(node: SvgNode, state: &State, cache: &mut Cache, p
+         return;
+     }
+
++    // A zero viewBox disables rendering of this element's content.
++    if tag_name == EId::Svg && node.has_rendering_disabling_viewbox() {
++        return;
++    }
++
+     if tag_name == EId::Use {
+         super::use_node::convert(node, state, cache, parent);
+         return;
+diff --git a/src/parser/marker.rs b/src/parser/marker.rs
+index 1044d71..4dd5d47 100644
+--- a/src/parser/marker.rs
++++ b/src/parser/marker.rs
+@@ -91,6 +91,12 @@ fn resolve(
+
+     let r = convert_rect(marker_node, state)?;
+
++    // A zero viewBox disables rendering of the marker. Returning None here
++    // drops only the marker; the shape it decorates still strokes.
++    if marker_node.has_rendering_disabling_viewbox() {
++        return None;
++    }
++
+     let view_box_ts = marker_node
+         .parse_viewbox()
+         .map(|vb| {
+diff --git a/src/parser/paint_server.rs b/src/parser/paint_server.rs
+index 619543b..f28aebe 100644
+--- a/src/parser/paint_server.rs
++++ b/src/parser/paint_server.rs
+@@ -157,6 +157,13 @@ fn convert_pattern(
+
+     let id = NonEmptyString::new(node.element_id().to_string())?;
+
++    // A zero viewBox disables rendering of the pattern. A paint server that
++    // cannot render leaves the referencing element unpainted: None here ends
++    // up in from_fallback(), which yields no paint when no fallback is given.
++    if resolve_attr(node, AId::ViewBox).has_rendering_disabling_viewbox() {
++        return None;
++    }
++
+     let view_box = {
+         let n1 = resolve_attr(node, AId::ViewBox);
+         let n2 = resolve_attr(node, AId::PreserveAspectRatio);
+diff --git a/src/parser/use_node.rs b/src/parser/use_node.rs
+index 5048fdf..be8e256 100644
+--- a/src/parser/use_node.rs
++++ b/src/parser/use_node.rs
+@@ -52,6 +52,12 @@ pub(crate) fn convert(
+
+     let linked_to_symbol = child.tag_name() == Some(EId::Symbol);
+
++    // A zero viewBox on the referenced symbol disables its rendering, so
++    // the `use` draws nothing (SVG2 coords.html#ViewBoxAttribute).
++    if linked_to_symbol && child.has_rendering_disabling_viewbox() {
++        return;
++    }
++
+     if linked_to_symbol {
+         // If a `use` element has a width/height attribute and references a symbol
+         // then relative units (like percentages) should be resolved relative

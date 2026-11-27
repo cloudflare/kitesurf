@@ -1,0 +1,332 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 12:10:49 +0000
+Subject: [PATCH] Add a style-only resolve, start web-font fetches from it and
+ reshape only what a font changes
+
+A computed-value reader needs resolved styles but no box tree, and re-resolving layout for one
+answer costs a whole pass over the document. Add a resolve that restyles and stops before layout,
+and answer the computed-value reads from it.
+
+A style-only pass also sees a font face it has never registered. Start the fetch there so the font
+is in flight while the box tree is being built, rather than after the first layout that needs it.
+
+A web font arriving after the first layout damaged every inline layout in the document, so a face
+used by one table on html.spec.whatwg.org cost a full 740k-node relayout. Only text whose
+font-family names the registered family can shape differently; reshape those inline roots and the
+inline roots above them. A face with no family name still reshapes everything. The damage is
+applied at the next resolve rather than on each delivery, so a page that receives N faces walks its
+nodes once instead of N times.
+---
+ src/document.rs        |  32 ++++++++++++-
+ src/layout/damage.rs   | 102 +++++++++++++++++++++++++++++++++++++++++
+ src/resolve.rs         |  38 +++++++++++++++
+ src/stylo/traversal.rs |  23 +++++++++-
+ 4 files changed, 192 insertions(+), 3 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 2b4d0f7..02c7a20 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -269,6 +269,15 @@ pub struct BaseDocument {
+     // Config
+     /// Base url for resolving linked resources (stylesheets, images, fonts, etc)
+     pub(crate) url: DocumentUrl,
++    /// Sticky: some element was ever styled as a query container, so a style-only resolve can
++    /// no longer skip layout. Saves `resolve_style` a scan of every node on each read.
++    pub(crate) size_container_seen: bool,
++    /// A web font arrived since the last resolve, so inline contexts must be reshaped.
++    pub(crate) inline_contexts_stale: bool,
++    /// Lowercased families of the faces registered since the last resolve. Only text whose
++    /// `font-family` names one of them can shape differently, unless a face had no name.
++    pub(crate) stale_font_families: Vec<String>,
++    pub(crate) stale_font_family_unknown: bool,
+     // Devtool settings. Currently used to render debug overlays
+     pub(crate) devtool_settings: DevtoolSettings,
+     // Viewport details such as the dimensions, HiDPI scale, and zoom factor,
+@@ -707,6 +716,10 @@ impl BaseDocument {
+             counters_seen: false,
+             counters_built_once: false,
+             url: base_url,
++            size_container_seen: false,
++            inline_contexts_stale: false,
++            stale_font_families: Vec::new(),
++            stale_font_family_unknown: false,
+             author_sheet_cache: HashMap::new(),
+             pending_style_nodes: HashSet::new(),
+             author_sheet_keys: HashMap::new(),
+@@ -2555,6 +2568,20 @@ impl BaseDocument {
+                         });
+                     }
+                 }
++                let mut names: Vec<String> =
++                    overrides.family_name.iter().map(|name| name.to_lowercase()).collect();
++                for (family, _) in &registered {
++                    if let Some(name) = global_font_ctx.collection.family_name(*family) {
++                        names.push(name.to_lowercase());
++                    }
++                }
++                // A face with no family name can change the shaping of any text.
++                self.stale_font_family_unknown |= names.is_empty();
++                for name in names {
++                    if !self.stale_font_families.contains(&name) {
++                        self.stale_font_families.push(name);
++                    }
++                }
+
+                 #[cfg(feature = "parallel-construct")]
+                 {
+@@ -2570,8 +2597,9 @@ impl BaseDocument {
+                 }
+                 drop(global_font_ctx);
+
+-                // TODO: see if we can only invalidate if resolved fonts may have changed
+-                self.invalidate_inline_contexts();
++                // Deferred to the next resolve: the damage is only read there, and a page
++                // receiving N faces would otherwise walk every node N times.
++                self.inline_contexts_stale = true;
+             }
+             Resource::None => {
+                 // Do nothing
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 03ea31f..361b80a 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -628,6 +628,108 @@ pub(crate) fn sort_layout_children_by_order(
+ }
+
+ impl BaseDocument {
++    /// `invalidate_inline_contexts` limited to text that can shape differently now that faces of
++    /// `families` (lowercased) exist: nodes whose `font-family` names one of them. Each match
++    /// damages the inline root holding its text and every inline root above it, since an
++    /// inline-block that reshapes resizes the lines around it.
++    pub(crate) fn invalidate_inline_contexts_using(&mut self, families: &[String]) {
++        let matched = self.nodes_naming_font_family(families);
++        if matched.is_empty() {
++            return;
++        }
++        let (roots, inputs) = self.inline_roots_above(&matched);
++        self.damage_inline_roots(&roots);
++        self.refresh_text_inputs(&inputs);
++    }
++
++    /// The connected nodes whose `font-family` names one of `families` (lowercased).
++    fn nodes_naming_font_family(&self, families: &[String]) -> Vec<NodeId> {
++        if families.is_empty() {
++            return Vec::new();
++        }
++        let names_family = |node: &crate::Node| {
++            let Some(styles) = node.primary_styles() else {
++                // Unstyled boxes keep no record of their font; reshape them to be safe.
++                return node.element_data().is_some_and(|e| e.inline_layout_data().is_some());
++            };
++            styles.get_font().font_family.families.list.iter().any(|family| match family {
++                style::values::computed::font::SingleFontFamily::FamilyName(name) => {
++                    let name: &str = name.name.as_ref();
++                    families.iter().any(|f| {
++                        if name.is_ascii() {
++                            f.eq_ignore_ascii_case(name)
++                        } else {
++                            f.as_str() == name.to_lowercase().as_str()
++                        }
++                    })
++                }
++                style::values::computed::font::SingleFontFamily::Generic(_) => false,
++            })
++        };
++        self.nodes
++            .iter()
++            .filter(|(_, node)| node.flags.contains(NodeFlags::IS_IN_DOCUMENT))
++            .filter(|(_, node)| node.element_data().is_some() && names_family(node))
++            .map(|(id, _)| id)
++            .collect()
++    }
++
++    /// The inline roots holding text of each node in `starts` and those above them, plus the
++    /// text inputs among `starts`.
++    fn inline_roots_above(&self, starts: &[NodeId]) -> (Vec<NodeId>, Vec<NodeId>) {
++        let mut visited = std::collections::HashSet::new();
++        let mut roots = Vec::new();
++        let mut inputs = Vec::new();
++        for &start in starts {
++            if self.nodes[start].element_data().is_some_and(|e| e.text_input_data().is_some()) {
++                inputs.push(start);
++            }
++            let mut at = Some(start);
++            while let Some(id) = at {
++                if !visited.insert(id) {
++                    break;
++                }
++                let node = &self.nodes[id];
++                if node.element_data().is_some_and(|e| e.inline_layout_data().is_some()) {
++                    roots.push(id);
++                }
++                at = node.layout_parent.get().or(node.parent.get());
++            }
++        }
++        (roots, inputs)
++    }
++
++    /// Damages each inline root, and the block that re-collects an anonymous one.
++    fn damage_inline_roots(&mut self, roots: &[NodeId]) {
++        for &id in roots {
++            let node = &mut self.nodes[id];
++            node.insert_damage(ALL_DAMAGE);
++            if node.is_anonymous() {
++                if let Some(parent_id) = node.layout_parent.get() {
++                    self.nodes[parent_id].insert_damage(ALL_DAMAGE);
++                }
++            }
++        }
++    }
++
++    /// Reshapes the editor of each text input against the newly registered faces.
++    fn refresh_text_inputs(&mut self, inputs: &[NodeId]) {
++        let scale = self.viewport.scale();
++        let font_ctx = &self.font_ctx;
++        let layout_ctx = &mut self.layout_ctx;
++        for &id in inputs {
++            let node = &mut self.nodes[id];
++            if let Some(input) =
++                node.data.downcast_element_mut().and_then(|e| e.text_input_data_mut())
++            {
++                input.editor.set_scale(scale);
++                let mut font_ctx = font_ctx.lock().unwrap();
++                input.editor.refresh_layout(&mut font_ctx, layout_ctx);
++                node.insert_damage(ONLY_RELAYOUT);
++            }
++        }
++    }
++
+     pub(crate) fn invalidate_inline_contexts(&mut self) {
+         let scale = self.viewport.scale();
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index b02d6fb..40f4739 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -128,6 +128,42 @@ impl BaseDocument {
+         }
+     }
+
++    /// Restyle the tree without box construction or layout, leaving damage for the next `resolve`.
++    /// False means the caller must still run `resolve`: no DOM, render-blocking resources are
++    /// pending, or a query container exists, since `@container` rules read laid-out sizes.
++    pub fn resolve_style(&mut self, current_time_for_animations: f64) -> bool {
++        if self.root_node().first_element_child().is_none() {
++            return false;
++        }
++        self.process_pending_style_elements();
++        self.handle_messages();
++        if self.has_pending_critical_resources() {
++            return false;
++        }
++        self.flush_pending_device_changes();
++        self.flush_slot_assignments();
++        self.resolve_stylist(current_time_for_animations);
++        // Start web-font fetches from styles alone, as browsers do, so a caller can wait for the
++        // faces before the first layout instead of shaping every paragraph twice.
++        self.flush_needed_font_faces();
++        !self.size_container_seen
++    }
++
++    /// Reshape the inline contexts that web-font faces registered since the last resolve can
++    /// change. Deferred to here because the damage is only read in a resolve, and a page
++    /// receiving N faces would otherwise walk every node N times.
++    fn apply_pending_font_damage(&mut self) {
++        if !std::mem::take(&mut self.inline_contexts_stale) {
++            return;
++        }
++        let families = std::mem::take(&mut self.stale_font_families);
++        if std::mem::take(&mut self.stale_font_family_unknown) {
++            self.invalidate_inline_contexts();
++        } else {
++            self.invalidate_inline_contexts_using(&families);
++        }
++    }
++
+     /// Restyle the tree and then relayout it
+     pub fn resolve(&mut self, current_time_for_animations: f64) {
+         if self.root_node().first_element_child().is_none() {
+@@ -170,6 +206,7 @@ impl BaseDocument {
+         // Apply any device changes (viewport resize, zoom, color-scheme, etc)
+         // accumulated since the last resolve as a single device rebuild.
+         self.flush_pending_device_changes();
++        self.apply_pending_font_damage();
+         // Slot assignment shapes the flat tree that styling and box
+         // construction both consume; recompute before either runs.
+         self.flush_slot_assignments();
+@@ -198,6 +235,7 @@ impl BaseDocument {
+         // Snapshot the sizes it styles against, so the pass after layout can
+         // spot the containers whose answer is now stale.
+         let container_sizes_before = container_sizes(self);
++        self.size_container_seen |= !container_sizes_before.is_empty();
+
+         // CSS counters: list-item values + counter()/attr() pseudo content.
+         // Needs computed styles; box construction consumes the side tables.
+diff --git a/src/stylo/traversal.rs b/src/stylo/traversal.rs
+index c3e3446..b5c65d8 100644
+--- a/src/stylo/traversal.rs
++++ b/src/stylo/traversal.rs
+@@ -2,7 +2,7 @@
+
+ use blitz_traits::node_id::NodeId;
+ use std::sync::Mutex;
+-use std::sync::atomic::Ordering;
++use std::sync::atomic::{AtomicBool, Ordering};
+
+ use crate::StyleThreading;
+ use crate::layout::damage::CONSTRUCT_BOX;
+@@ -172,6 +172,7 @@ impl crate::document::BaseDocument {
+             style::driver::traverse_dom(&traverser, token, rayon_pool);
+             nodes_needing_style_image_flush =
+                 std::mem::take(traverser.nodes_needing_style_image_flush.get_mut().unwrap());
++            self.size_container_seen |= *traverser.saw_size_container.get_mut();
+         }
+         self.pending_style_image_nodes
+             .extend(nodes_needing_style_image_flush);
+@@ -488,6 +489,8 @@ pub struct RecalcStyle<'a> {
+     /// dedicated storage on the node (see `flush_image_layers_from_style`)
+     /// because their style changed during this traversal.
+     nodes_needing_style_image_flush: Mutex<Vec<NodeId>>,
++    /// Whether this traversal styled any element or eager pseudo-element as a query container.
++    saw_size_container: AtomicBool,
+ }
+
+ impl<'a> RecalcStyle<'a> {
+@@ -495,10 +498,22 @@ impl<'a> RecalcStyle<'a> {
+         RecalcStyle {
+             context,
+             nodes_needing_style_image_flush: Mutex::new(Vec::new()),
++            saw_size_container: AtomicBool::new(false),
+         }
+     }
+ }
+
++fn is_size_container_style(style: &ComputedValues) -> bool {
++    !style.get_box().slow_clone_container_type().is_normal()
++}
++
++/// Whether this element or one of its eager pseudo-elements styles as a query container.
++fn styles_a_size_container(styles: &style::data::ElementStyles) -> bool {
++    let pseudos = styles.pseudos.as_optional_array();
++    styles.get_primary().is_some_and(|s| is_size_container_style(s))
++        || pseudos.is_some_and(|styles| styles.iter().flatten().any(|s| is_size_container_style(s)))
++}
++
+ #[allow(unsafe_code)]
+ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+     fn process_preorder<F: FnMut(BlitzNode<'dom>)>(
+@@ -538,6 +553,12 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+                 el.record_out_of_flow(style);
+             }
+
++            if !self.saw_size_container.load(Ordering::Relaxed)
++                && styles_a_size_container(&data.styles)
++            {
++                self.saw_size_container.store(true, Ordering::Relaxed);
++            }
++
+             if !data.damage.is_empty() {
+                 // Mark the ancestor chain so that the damage propagation pass
+                 // visits this element.

@@ -1,0 +1,565 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 04:25:02 +0000
+Subject: [PATCH] Read packed node storage through accessors
+
+Follow blitz-dom's packed node storage: links are slot indexes, a node's id comes from
+id(), special data from the element's rare box, and border, padding and scrollbar sizes
+from a layout that may keep them out of line. Paint output is unchanged.
+---
+ src/debug_overlay.rs        |   2 +-
+ src/render.rs               | 189 ++++++++++++++++++------------------
+ src/render/background.rs    |  10 +-
+ src/render/border.rs        |   2 +-
+ src/render/box_shadow.rs    |   2 +-
+ src/render/form_controls.rs |   5 +-
+ src/text.rs                 |   6 +-
+ src/text_box_decorations.rs |   4 +-
+ 8 files changed, 112 insertions(+), 108 deletions(-)
+
+diff --git a/src/debug_overlay.rs b/src/debug_overlay.rs
+index 0044b26..278b8fd 100644
+--- a/src/debug_overlay.rs
++++ b/src/debug_overlay.rs
+@@ -43,7 +43,7 @@ pub(crate) fn render_debug_overlay(
+         padding,
+         margin,
+         ..
+-    } = *node.final_layout();
++    } = node.final_layout();
+     let taffy::Size { width, height } = size;
+
+     let padding_border = padding + border;
+diff --git a/src/render.rs b/src/render.rs
+index e80a574..fd07af6 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -22,8 +22,7 @@ use crate::text::{DrawTextContext, TextPaintOptions};
+ use crate::{CustomWidgetSceneMap, SELECTION_COLOR};
+ use anyrender::{AntiAliasing, PaintScene, Scene, ScenePart};
+ use blitz_dom::node::{
+-    ListItemLayout, Marker, NodeData, RasterImageData, TextInputData,
+-    TextNodeData,
++    ListItemLayout, Marker, NodeData, RasterImageData, TextBrush, TextInputData, TextNodeData,
+ };
+ use blitz_dom::{BaseDocument, ElementData, Node, NodeId, local_name};
+ use blitz_traits::devtools::DevtoolSettings;
+@@ -43,6 +42,7 @@ use style::{
+ };
+
+ use kurbo::{self, Affine, BezPath, Insets, Point, Rect, Shape, Size, Stroke, Vec2};
++use parley::layout::Layout as ParleyLayout;
+ use peniko::{self, BlendMode, Fill, ImageData, ImageSampler};
+ use style::computed_values::isolation::T as Isolation;
+ use style::values::generics::color::GenericColor;
+@@ -177,7 +177,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             .collect();
+
+         let layer_manager = LayerManager::default();
+-        let root_element_id = dom.try_root_element().map(|el| el.id);
++        let root_element_id = dom.try_root_element().map(|el| el.id());
+         // CSS Backgrounds 3 section 2.11.1 canvas-background propagation. The root
+         // propagates its background when it has a color or an image; otherwise the body
+         // does. Images and gradients propagate together with the color.
+@@ -194,12 +194,12 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                         })
+             });
+             if root_has_bg {
+-                Some(root.id)
++                Some(root.id())
+             } else {
+-                root.children.iter().find_map(|id| {
+-                    dom.get_node(*id)
++                root.children().iter().find_map(|id| {
++                    dom.get_node(id)
+                         .filter(|node| node.data.is_element_with_tag_name(&local_name!("body")))
+-                        .map(|body| body.id)
++                        .map(|body| body.id())
+                 })
+             }
+         });
+@@ -286,7 +286,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         let Some(root_element) = self.dom.as_ref().try_root_element() else {
+             return;
+         };
+-        let root_id = root_element.id;
++        let root_id = root_element.id();
+         let bg_width = (self.width as f32).max(root_element.final_layout().size.width);
+         let bg_height = (self.height as f32).max(root_element.final_layout().size.height);
+
+@@ -327,7 +327,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                     width: bg_width,
+                     height: bg_height,
+                 },
+-                ..*root_element.final_layout()
++                ..root_element.final_layout()
+             };
+             let canvas_cx = self.element_cx(
+                 source,
+@@ -451,8 +451,8 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+     fn clipped_axes(&self, node: &Node, styles: &ComputedValues) -> BlitzPoint<bool> {
+         // The root's overflow applies to the viewport, and so does a body's that went to the
+         // viewport in the root's place (CSS Overflow 3 section 3.3).
+-        if self.root_element_id == Some(node.id)
+-            || self.dom.propagates_overflow_to_viewport(node.id)
++        if self.root_element_id == Some(node.id())
++            || self.dom.propagates_overflow_to_viewport(node.id())
+         {
+             return BlitzPoint { x: false, y: false };
+         }
+@@ -502,7 +502,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         {
+             return;
+         }
+-        let cx = self.element_cx(node, *node.final_layout(), transform, None);
++        let cx = self.element_cx(node, node.final_layout(), transform, None);
+         let clipped_axes = self.clipped_axes(node, &styles);
+         let clip = if cx.text_input.is_some() {
+             cx.frame.text_input_clip_shape().into()
+@@ -539,7 +539,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                         scale: self.scale,
+                         brush_override: Some(Color::BLACK),
+                     },
+-                    node.id,
++                    node.id(),
+                     &mut self.draw_text_context.borrow_mut(),
+                     None,
+                 );
+@@ -620,7 +620,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             border,
+             padding,
+             ..
+-        } = *node.final_layout();
++        } = node.final_layout();
+         let box_size = Size::new(
+             size.width as f64 * self.scale,
+             size.height as f64 * self.scale,
+@@ -704,7 +704,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+
+         // Apply CSS transform property (where transforms are 2d)
+
+-        let mut cx = self.element_cx(node, *node.final_layout(), transform, custom_widget_scene);
++        let mut cx = self.element_cx(node, node.final_layout(), transform, custom_widget_scene);
+
+         // If this element clips its overflow it establishes a scrollport: narrow the clip
+         // rectangle passed to descendants to the visible (clipped) region so that content
+@@ -1129,7 +1129,7 @@ impl ElementCx<'_, '_> {
+
+         // scrollbar-color doesn't affect overlay visibility: persistence is
+         // UA policy, not author styling.
+-        let node_id = self.node.id;
++        let node_id = self.node.id();
+         let opacity = self.context.dom.scrollbar_opacity(node_id);
+         if opacity == 0.0 {
+             return;
+@@ -1233,6 +1233,7 @@ impl ElementCx<'_, '_> {
+
+     fn draw_inline_layout(&self, scene: &mut impl PaintScene, pos: Point) {
+         if self.node.flags.is_inline_root() {
++            let node_id = self.node.id();
+             let text_layout = self.element
+                 .inline_layout_data()
+                 .unwrap_or_else(|| {
+@@ -1254,18 +1255,12 @@ impl ElementCx<'_, '_> {
+                 layout,
+                 self.context.dom,
+                 transform,
+-                self.node.id,
++                node_id,
+             );
+
+             // Render text selection highlight (if any) using cached selection ranges
+-            if let Some(&(sel_start, sel_end)) = self.context.selection_ranges.get(&self.node.id) {
+-                crate::text::draw_text_selection(
+-                    scene,
+-                    layout,
+-                    transform,
+-                    sel_start,
+-                    sel_end,
+-                );
++            if let Some(&(sel_start, sel_end)) = self.context.selection_ranges.get(&node_id) {
++                crate::text::draw_text_selection(scene, layout, transform, sel_start, sel_end);
+             }
+
+             // Render text
+@@ -1279,7 +1274,7 @@ impl ElementCx<'_, '_> {
+                     scale: self.scale,
+                     brush_override: None,
+                 },
+-                self.node.id,
++                node_id,
+                 &mut draw_text_context,
+                 None,
+             );
+@@ -1289,7 +1284,7 @@ impl ElementCx<'_, '_> {
+                 layout,
+                 self.context.dom,
+                 transform,
+-                self.node.id,
++                node_id,
+             );
+         }
+     }
+@@ -1363,7 +1358,7 @@ impl ElementCx<'_, '_> {
+                     scale: self.scale,
+                     brush_override: None,
+                 },
+-                self.node.id,
++                self.node.id(),
+                 &mut draw_text_context,
+                 fill_override,
+             );
+@@ -1371,65 +1366,71 @@ impl ElementCx<'_, '_> {
+     }
+
+     fn draw_marker(&self, scene: &mut impl PaintScene, pos: Point) {
+-        if let Some(list_item) = self.list_item
+-            && let Some(layout) =
+-                list_item.outside_marker_layout(self.context.dom.tree(), self.node.id)
+-        {
+-            let marker = &list_item.marker;
+-            let content_box_subpixel_offset = list_item.content_box_subpixel_offset;
+-            // Right align and pad the bullet when rendering outside
+-            let x_padding = match marker {
+-                Marker::Char(_) => 8.0,
+-                Marker::String(_) => 0.0,
+-            };
+-            // Outside markers are placed outside the list item's border box
+-            // (`pos` is the origin of its content box)
+-            let item_layout = self.node.final_layout();
+-            let x_offset = -(layout.full_width() / layout.scale()
+-                + x_padding
+-                + item_layout.padding.left
+-                + item_layout.border.left);
+-
+-            // Align the marker with the baseline of the first line of text in the list item
+-            let y_offset = if let Some((text_layout, first_text_line)) = &self
+-                .element
+-                .inline_layout_data()
+-                .and_then(|text_layout| {
+-                    let layout = text_layout.layout(self.context.dom.tree());
+-                    Some((text_layout, layout.lines().next()?))
+-                })
+-            {
+-                (first_text_line.metrics().baseline
+-                    - layout.lines().next().unwrap().metrics().baseline)
+-                    / layout.scale()
+-                    + text_layout.block_offset
+-            } else {
+-                0.0
+-            };
++        let Some(list_item) = self.list_item else {
++            return;
++        };
++        let Some(marker_layout) =
++            list_item.outside_marker_layout(self.context.dom.tree(), self.node.id())
++        else {
++            return;
++        };
+
+-            let pos = Point {
+-                x: pos.x + (content_box_subpixel_offset.x + x_offset) as f64,
+-                y: pos.y + (content_box_subpixel_offset.y + y_offset) as f64,
+-            };
++        // Text keeps its unrounded position; only box edges are snapped to whole pixels.
++        let subpixel_offset = list_item.content_box_subpixel_offset;
++        let pos = Point {
++            x: pos.x
++                + subpixel_offset.x as f64
++                + self.marker_x_offset(&list_item.marker, &marker_layout),
++            y: pos.y + subpixel_offset.y as f64 + self.marker_baseline_offset(&marker_layout),
++        };
++        let transform =
++            self.transform * Affine::translate((pos.x * self.scale, pos.y * self.scale));
+
+-            let transform =
+-                self.transform * Affine::translate((pos.x * self.scale, pos.y * self.scale));
++        let mut draw_text_context = self.context.draw_text_context.borrow_mut();
++        crate::text::stroke_text(
++            scene,
++            marker_layout.lines(),
++            self.context.dom,
++            transform,
++            TextPaintOptions {
++                scale: self.scale,
++                brush_override: None,
++            },
++            self.node.id(),
++            &mut draw_text_context,
++            None,
++        );
++    }
+
+-            let mut draw_text_context = self.context.draw_text_context.borrow_mut();
+-            crate::text::stroke_text(
+-                scene,
+-                layout.lines(),
+-                self.context.dom,
+-                transform,
+-                TextPaintOptions {
+-                    scale: self.scale,
+-                    brush_override: None,
+-                },
+-                self.node.id,
+-                &mut draw_text_context,
+-                None,
+-            );
+-        }
++    /// Left offset of an outside marker from the list item's content box origin:
++    /// markers sit outside the item's border box, right-aligned, with a gap after
++    /// a char bullet so it does not touch the text.
++    fn marker_x_offset(&self, marker: &Marker, marker_layout: &ParleyLayout<TextBrush>) -> f64 {
++        let x_padding = match marker {
++            Marker::Char(_) => 8.0,
++            Marker::String(_) => 0.0,
++        };
++        let item_layout = self.node.final_layout();
++        let marker_width = marker_layout.full_width() / marker_layout.scale();
++        let inset = marker_width + x_padding + item_layout.padding.left + item_layout.border.left;
++        -f64::from(inset)
++    }
++
++    /// Top offset of an outside marker from the list item's content box origin:
++    /// the marker's first line sits on the baseline of the item's first text
++    /// line. Zero when the item has no shaped text.
++    fn marker_baseline_offset(&self, marker_layout: &ParleyLayout<TextBrush>) -> f64 {
++        let Some(text_layout) = self.element.inline_layout_data() else {
++            return 0.0;
++        };
++        let item_layout = text_layout.layout(self.context.dom.tree());
++        let Some(item_baseline) = item_layout.first_baseline() else {
++            return 0.0;
++        };
++        let marker_baseline = marker_layout.first_baseline().unwrap();
++        // The baselines are in scaled pixels; block_offset is in CSS pixels.
++        let baseline_delta = item_baseline - marker_baseline;
++        (baseline_delta / marker_layout.scale() + text_layout.block_offset) as f64
+     }
+
+     fn draw_children(
+@@ -1443,7 +1444,7 @@ impl ElementCx<'_, '_> {
+
+         if let Some(hoisted) = self.node.stacking_context() {
+             for hoisted_child in hoisted.neg_z_hoisted_children() {
+-                let position = hoisted_child.position(self.node.tree(), self.node.id);
++                let position = hoisted_child.position(self.node.tree(), self.node.id());
+                 self.render_hoisted_child(
+                     scene,
+                     hoisted_child.node_id,
+@@ -1459,7 +1460,7 @@ impl ElementCx<'_, '_> {
+             for child_id in children.iter() {
+                 let child = &self.context.dom.as_ref().tree()[*child_id];
+                 let child_transform = match child.paint_parent_override() {
+-                    Some(parent) if parent == self.node.id => {
++                    Some(parent) if parent == self.node.id() => {
+                         if skip_rehomed {
+                             continue;
+                         }
+@@ -1476,7 +1477,7 @@ impl ElementCx<'_, '_> {
+                     // A fixed box contained by a transformed ancestor scrolls with it
+                     // like any out-of-flow box.
+                     _ if child.taffy_position() == taffy::Position::Fixed
+-                        && Some(self.node.id) == self.context.root_element_id =>
++                        && Some(self.node.id()) == self.context.root_element_id =>
+                     {
+                         let scroll = self.context.dom.as_ref().tree().fixed_anchor_scroll();
+                         parent_style_transform.pre_translate(kurbo::Vec2 {
+@@ -1484,7 +1485,7 @@ impl ElementCx<'_, '_> {
+                             y: scroll.y * self.scale,
+                         })
+                     }
+-                    _ => match child.lifted_paint_offset(self.node.id) {
++                    _ => match child.lifted_paint_offset(self.node.id()) {
+                         Some(offset) => parent_style_transform.pre_translate(kurbo::Vec2 {
+                             x: offset.x as f64 * self.scale,
+                             y: offset.y as f64 * self.scale,
+@@ -1499,7 +1500,7 @@ impl ElementCx<'_, '_> {
+         // Positive z_index hoisted nodes
+         if let Some(hoisted) = self.node.stacking_context() {
+             for hoisted_child in hoisted.pos_z_hoisted_children() {
+-                let position = hoisted_child.position(self.node.tree(), self.node.id);
++                let position = hoisted_child.position(self.node.tree(), self.node.id());
+                 self.render_hoisted_child(
+                     scene,
+                     hoisted_child.node_id,
+@@ -1566,7 +1567,7 @@ impl ElementCx<'_, '_> {
+         let mut chain = Vec::new();
+         let mut cursor = tree.get(child_id).and_then(|node| node.containing_block());
+         while let Some(id) = cursor {
+-            if id == self.node.id {
++            if id == self.node.id() {
+                 break;
+             }
+             let node = tree.get(id)?;
+@@ -1583,7 +1584,9 @@ impl ElementCx<'_, '_> {
+             let origin = offset + Vec2::new(layout.location.x as f64, layout.location.y as f64);
+             let scroll = node.scroll_offset();
+             offset = origin - Vec2::new(scroll.x, scroll.y);
+-            if self.context.root_element_id == Some(node.id) {
++            // `node` is a `&&Node`, so `TElement::id` (also in scope) wins method
++            // resolution; name the node's own `id` explicitly.
++            if self.context.root_element_id == Some(Node::id(node)) {
+                 continue;
+             }
+             let Some(styles) = node.primary_styles() else {
+@@ -1627,10 +1630,10 @@ impl ElementCx<'_, '_> {
+         };
+         for child_id in children.iter() {
+             let child = &self.context.dom.as_ref().tree()[*child_id];
+-            if child.paint_parent_override() != Some(self.node.id) {
++            if child.paint_parent_override() != Some(self.node.id()) {
+                 continue;
+             }
+-            let translation = child.rehomed_paint_translate(self.node.id);
++            let translation = child.rehomed_paint_translate(self.node.id());
+             let transform = parent_style_transform.pre_translate(kurbo::Vec2 {
+                 x: translation.x as f64 * self.scale,
+                 y: translation.y as f64 * self.scale,
+diff --git a/src/render/background.rs b/src/render/background.rs
+index 941b73f..9fa36ea 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -147,7 +147,7 @@ impl ElementCx<'_, '_> {
+             self.begin_text_clip_group(scene);
+         }
+         // The canvas already paints this element's background color.
+-        if self.context.canvas_background_node_id != Some(self.node.id) {
++        if self.context.canvas_background_node_id != Some(self.node.id()) {
+             self.draw_solid_bg(scene, &background_clip_path);
+         }
+
+@@ -212,7 +212,7 @@ impl ElementCx<'_, '_> {
+             None,
+         );
+         self.context
+-            .draw_text_mask(scene, self.node.id, self.transform, true);
++            .draw_text_mask(scene, self.node.id(), self.transform, true);
+         scene.pop_layer();
+         scene.pop_layer();
+     }
+@@ -277,7 +277,7 @@ impl ElementCx<'_, '_> {
+     /// `border-spacing` between them, nor where a row has no cell), so they are
+     /// painted cell by cell.
+     pub(super) fn draw_table_row_backgrounds(&self, scene: &mut impl PaintScene) {
+-        let SpecialElementData::TableRoot(table) = &self.element.special_data else {
++        let SpecialElementData::TableRoot(table) = self.element.special_data() else {
+             return;
+         };
+
+@@ -435,12 +435,12 @@ impl ElementCx<'_, '_> {
+     /// `will-change: transform`, both of which should also degrade `fixed`
+     /// to `scroll` (see WPT css/css-transforms/transform-fixed-bg-005/008)
+     fn is_transformed(&self) -> bool {
+-        let mut current = Some(self.node.id);
++        let mut current = Some(self.node.id());
+         while let Some(node) = current.and_then(|id| self.context.dom.get_node(id)) {
+             if node.transform().is_some() {
+                 return true;
+             }
+-            current = node.parent.get();
++            current = node.parent_id();
+         }
+         false
+     }
+diff --git a/src/render/border.rs b/src/render/border.rs
+index d1f58b8..b51ce17 100644
+--- a/src/render/border.rs
++++ b/src/render/border.rs
+@@ -657,7 +657,7 @@ impl ElementCx<'_, '_> {
+     }
+
+     pub(crate) fn draw_table_borders(&self, scene: &mut impl PaintScene) {
+-        let SpecialElementData::TableRoot(table) = &self.element.special_data else {
++        let SpecialElementData::TableRoot(table) = self.element.special_data() else {
+             return;
+         };
+         // Borders are only handled at the table level when BorderCollapse::Collapse
+diff --git a/src/render/box_shadow.rs b/src/render/box_shadow.rs
+index 7a65dd0..160888d 100644
+--- a/src/render/box_shadow.rs
++++ b/src/render/box_shadow.rs
+@@ -31,7 +31,7 @@ impl ElementCx<'_, '_> {
+         let clip_to_box = opacity < 1.0
+             || !bg_is_opaque
+             || !bg_covers_border_box
+-            || self.context.canvas_background_node_id == Some(self.node.id);
++            || self.context.canvas_background_node_id == Some(self.node.id());
+
+         let border_box = self.frame.border_box_shape();
+         for shadow in box_shadow.iter().filter(|s| !s.inset).rev() {
+diff --git a/src/render/form_controls.rs b/src/render/form_controls.rs
+index c8c51cf..9d8c599 100644
+--- a/src/render/form_controls.rs
++++ b/src/render/form_controls.rs
+@@ -91,15 +91,16 @@ impl ElementCx<'_, '_> {
+         let scale = (min_dimension - 4.0).max(0.0) / 16.0;
+
+         let frame = self.frame.border_box.to_rounded_rect(scale * 2.0);
++        let part_id = self.node.id().as_u64();
+
+         match type_attr {
+             Some("checkbox") => {
+-                scene.begin_part(self.node.id.as_u64(), ScenePart::Checkbox { checked });
++                scene.begin_part(part_id, ScenePart::Checkbox { checked });
+                 draw_checkbox(scene, checked, frame, self.transform, accent_color, scale);
+                 scene.end_part();
+             }
+             Some("radio") => {
+-                scene.begin_part(self.node.id.as_u64(), ScenePart::Radio { checked });
++                scene.begin_part(part_id, ScenePart::Radio { checked });
+                 let center = frame.center();
+                 draw_radio_button(scene, checked, center, self.transform, accent_color, scale);
+                 scene.end_part();
+diff --git a/src/text.rs b/src/text.rs
+index 4576e66..6b466f0 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -57,7 +57,7 @@ pub(crate) fn inline_opacity(doc: &BaseDocument, node_id: NodeId, inline_root_id
+         if let Some(styles) = node.primary_styles() {
+             opacity *= styles.get_effects().opacity;
+         }
+-        walk_id = node.parent.get();
++        walk_id = node.parent_id();
+     }
+     opacity
+ }
+@@ -104,7 +104,7 @@ pub(crate) fn stroke_text<'a>(
+                 break;
+             }
+         }
+-        let Some(parent) = node.parent.get() else { break };
++        let Some(parent) = node.parent_id() else { break };
+         ancestors.push(parent);
+         walk_id = parent;
+     }
+@@ -152,7 +152,7 @@ pub(crate) fn stroke_text<'a>(
+                 if node_id == inline_root_id {
+                     break;
+                 }
+-                walk_id = doc.get_node(node_id).and_then(|node| node.parent.get());
++                walk_id = doc.get_node(node_id).and_then(|node| node.parent_id());
+             }
+             path_scratch.extend(ancestors.iter().copied());
+             path_scratch.reverse();
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+index 5ce7508..855aa0d 100644
+--- a/src/text_box_decorations.rs
++++ b/src/text_box_decorations.rs
+@@ -102,7 +102,7 @@ pub(crate) fn paint_span_fragment_backgrounds(
+             .background_color
+             .resolve_to_absolute(&current_color)
+             .as_srgb_color()
+-            .multiply_alpha(crate::text::inline_opacity(doc, node.id, inline_root_id));
++            .multiply_alpha(crate::text::inline_opacity(doc, node.id(), inline_root_id));
+         if bg.components[3] == 0.0 {
+             continue;
+         }
+@@ -181,7 +181,7 @@ pub(crate) fn paint_span_fragment_borders(
+             _ => continue,
+         };
+         let current_color = primary.clone_color();
+-        let opacity = crate::text::inline_opacity(doc, node.id, inline_root_id);
++        let opacity = crate::text::inline_opacity(doc, node.id(), inline_root_id);
+         let border = primary.get_border();
+         let top_color = border
+             .border_top_color

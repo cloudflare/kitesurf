@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 9 Oct 2026 19:23:24 +0100
+Subject: [PATCH] Paint placeholder text in its ::placeholder colour
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A text control showing its placeholder drew it at 40% alpha of the
+input's own colour, and blitz-dom also forced it italic. No browser
+does either: Chromium paints the ::placeholder cascade, #757575 by
+default. Author rules such as `.x::placeholder { color: ... }` were
+ignored, so radar.cloudflare.com's location picker, which sets the
+placeholder to the text colour, read as an empty grey field.
+
+blitz-dom now resolves ::placeholder onto the text input data, and
+stroke_text takes an optional fill colour in place of the alpha that
+only this caller used.
+
+beep-boop-🤖
+---
+ src/render.rs | 17 ++++++++---------
+ src/text.rs   | 11 ++++++++---
+ 2 files changed, 16 insertions(+), 12 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index c682548..fe7b86b 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -479,7 +479,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                     },
+                     node.id,
+                     &mut self.draw_text_context.borrow_mut(),
+-                    1.0,
++                    None,
+                 );
+             }
+         }
+@@ -1219,7 +1219,7 @@ impl ElementCx<'_, '_> {
+                 },
+                 self.node.id,
+                 &mut draw_text_context,
+-                1.0,
++                None,
+             );
+
+             crate::text_box_decorations::paint_span_fragment_borders(
+@@ -1287,11 +1287,10 @@ impl ElementCx<'_, '_> {
+                 };
+             }
+
+-            let alpha = if input_data.is_showing_placeholder {
+-                0.4
+-            } else {
+-                1.0
+-            };
++            let fill_override = input_data
++                .placeholder_color
++                .filter(|_| input_data.is_showing_placeholder)
++                .map(|color| color.as_srgb_color());
+             let mut draw_text_context = self.context.draw_text_context.borrow_mut();
+             crate::text::stroke_text(
+                 scene,
+@@ -1304,7 +1303,7 @@ impl ElementCx<'_, '_> {
+                 },
+                 self.node.id,
+                 &mut draw_text_context,
+-                alpha,
++                fill_override,
+             );
+         }
+     }
+@@ -1364,7 +1363,7 @@ impl ElementCx<'_, '_> {
+                 },
+                 self.node.id,
+                 &mut draw_text_context,
+-                1.0,
++                None,
+             );
+         }
+     }
+diff --git a/src/text.rs b/src/text.rs
+index 19823cc..56fd40a 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -70,7 +70,7 @@ pub(crate) fn stroke_text<'a>(
+     options: TextPaintOptions,
+     inline_root_id: NodeId,
+     context: &mut DrawTextContext,
+-    alpha: f32,
++    fill_override: Option<Color>,
+ ) {
+     let TextPaintOptions {
+         scale,
+@@ -191,9 +191,14 @@ pub(crate) fn stroke_text<'a>(
+             // they are dropped when the brush is overridden.
+             let (fill_color, shadows) = stack
+                 .last()
+-                .map(|e| (e.fill_color.multiply_alpha(e.opacity), e.text_shadows.clone()))
++                .map(|e| {
++                    // `fill_override` stands in for `color` (the ::placeholder colour of a
++                    // text control); inline opacity still applies.
++                    let fill_color = fill_override.unwrap_or(e.fill_color);
++                    (fill_color.multiply_alpha(e.opacity), e.text_shadows.clone())
++                })
+                 .unwrap_or((Color::BLACK, None));
+-            let fill_color = brush_override.unwrap_or(fill_color).multiply_alpha(alpha);
++            let fill_color = brush_override.unwrap_or(fill_color);
+             let shadows = shadows.filter(|_| brush_override.is_none());
+             line_has_shadows |= shadows.is_some();
+             run_records.push(RunRecord {

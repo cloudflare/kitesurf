@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 18:56:48 +0000
+Subject: [PATCH] Treat a -webkit- prefixed function as a font family name
+
+font-family: -webkit-generic(fangsong), Ahem is a family list whose first entry is an
+unmatched name, so it falls through to Ahem. The parser rejected the function token and
+dropped the whole declaration, leaving the inherited family instead.
+---
+ values/computed/font.rs | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/values/computed/font.rs b/values/computed/font.rs
+index bd77c97..2a4d145 100644
+--- a/values/computed/font.rs
++++ b/values/computed/font.rs
+@@ -702,6 +702,22 @@ impl GenericFontFamily {
+     }
+ }
+
++/// A `-webkit-`-prefixed function token is a family name, not a generic, so a legacy
++/// `-webkit-generic(fangsong)` falls through to the next family instead of dropping the
++/// whole declaration (Chrome's behavior; see css-fonts generic-family-keywords tests).
++fn parse_webkit_function_family_name<'i>(input: &mut Parser<'i>) -> Result<Atom, ParseError> {
++    let start = input.position();
++    let name = input.expect_function()?.clone();
++    if !name.starts_with("-webkit-") {
++        return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
++    }
++    input.parse_nested_block(|input| {
++        while input.next().is_ok() {}
++        Ok(())
++    })?;
++    Ok(Atom::from(input.slice_from(start)))
++}
++
+ impl Parse for SingleFontFamily {
+     /// Parse a font-family value.
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+@@ -760,6 +776,13 @@ impl Parse for SingleFontFamily {
+             return Ok(SingleFontFamily::Generic(generic));
+         }
+
++        if let Ok(name) = input.try_parse(parse_webkit_function_family_name) {
++            return Ok(SingleFontFamily::FamilyName(FamilyName {
++                name,
++                syntax: FontFamilyNameSyntax::Identifiers,
++            }));
++        }
++
+         let first_ident = input.expect_ident_cloned()?;
+         let mut value = first_ident.as_ref().to_owned();
+         while let Ok(ident) = input.try_parse(|i| i.expect_ident_cloned()) {

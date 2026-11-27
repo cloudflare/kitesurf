@@ -1,0 +1,255 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:22:17 +0100
+Subject: [PATCH] Complete keyword grammars for the servo build
+
+image-rendering was missing 'smooth' (gecko-gated) and 'high-quality'
+(never implemented) from the css-images-3 grammar 'auto | smooth |
+high-quality | crisp-edges | pixelated'. Un-gate smooth and add
+high-quality as its own variant, not an alias of Smooth, so it
+serializes back as 'high-quality' rather than 'smooth'. The spec defines
+the two as behaviorally identical but distinct keywords. The deprecated
+optimizeSpeed and optimizeQuality synonyms stay gecko-only; no WPT
+coverage needs them.
+
+break-before and break-after were missing recto, verso, column,
+avoid-page, avoid-column, avoid-region and region from css-break-3's
+'auto | avoid | avoid-page | page | left | right | recto | verso |
+avoid-column | column | avoid-region | region'; break-inside was missing
+avoid-region. This is not a gecko/servo divergence: the enum's grammar
+was incomplete relative to the property's already-enabled longhand. The
+legacy page-break-* parsers and serializers must stay on their original
+five- and two-value grammars, so their matches grow explicit rejecting
+arms rather than falling through.
+
+css-multicol's column-fill is 'auto | balance | balance-all' (initial:
+balance); the ColumnFill enum only had auto and balance. balance-all has no
+downstream consumer, since multicol content balancing isn't implemented,
+so this is grammar completion only.
+
+shape-outside's AllowedBasicShapes::SHAPE_OUTSIDE bitset predates path()
+joining <basic-shape> and never got the PATH bit, even though Path and
+FillRule parsing is already complete and unconditionally compiled
+(shared with clip-path, which allows it). shape() stays excluded because
+it has its own pref gate. shape-outside has no downstream layout
+consumer for any basic-shape kind, so this is grammar completion only.
+
+all_transform_boxes_are_enabled() was a staging gate for Gecko's own
+incremental transform-box rollout (see the neighbouring "once we ship
+everything, drop this" comment), not a servo/gecko capability gap. Both
+keywords ship in every major engine. transform-box only affects
+'overflow' here, with no downstream layout or paint consumer, which
+matches the parse-only status of its other three keywords.
+
+The servo build knew only `auto` and `none`; `all`, `visiblePainted`,
+`fill` and the rest were gecko-only, so a declaration using them was a
+parse error and got dropped. Pages write `pointer-events: all` on HTML
+to take hits back under an inherited `none`, for example toolbar buttons
+over a canvas editor's `none` panel layer. With the declaration dropped
+they inherited `none`, and every click fell through to the canvas below.
+
+On HTML every keyword other than `none` behaves as `auto`, which is what
+the hit-tester already does with anything that is not `None`.
+
+Co-authored-by: Rui Figueira <rfigueira@cloudflare.com>
+---
+ values/specified/basic_shape.rs |  8 +++++--
+ values/specified/box.rs         | 38 +++++++++++++++++++++++++++++----
+ values/specified/column.rs      |  1 +
+ values/specified/image.rs       |  6 +++++-
+ values/specified/transform.rs   | 10 ++++-----
+ values/specified/ui.rs          | 11 +++-------
+ 6 files changed, 53 insertions(+), 21 deletions(-)
+
+diff --git a/values/specified/basic_shape.rs b/values/specified/basic_shape.rs
+index 752399e..a31ff4c 100644
+--- a/values/specified/basic_shape.rs
++++ b/values/specified/basic_shape.rs
+@@ -191,14 +191,18 @@ bitflags! {
+             Self::PATH.bits() |
+             Self::SHAPE.bits();
+
+-        /// For shape-outside.
++        /// For shape-outside. path() shares Path/FillRule with clip-path
++        /// (see ALL above) and has no shape-outside-specific handling, so
++        /// it's safe to allow here too. shape() stays excluded because
++        /// it is gated on its own pref.
+         const SHAPE_OUTSIDE =
+             Self::INSET.bits() |
+             Self::XYWH.bits() |
+             Self::RECT.bits() |
+             Self::CIRCLE.bits() |
+             Self::ELLIPSE.bits() |
+-            Self::POLYGON.bits();
++            Self::POLYGON.bits() |
++            Self::PATH.bits();
+     }
+ }
+
+diff --git a/values/specified/box.rs b/values/specified/box.rs
+index 520bec6..7628540 100644
+--- a/values/specified/box.rs
++++ b/values/specified/box.rs
+@@ -2008,6 +2008,13 @@ pub enum BreakBetween {
+     Avoid,
+     Left,
+     Right,
++    Recto,
++    Verso,
++    Column,
++    AvoidPage,
++    AvoidColumn,
++    AvoidRegion,
++    Region,
+ }
+
+ impl BreakBetween {
+@@ -2023,7 +2030,20 @@ impl BreakBetween {
+             BreakBetween::Auto | BreakBetween::Avoid | BreakBetween::Left | BreakBetween::Right => {
+                 Ok(break_value)
+             },
+-            BreakBetween::Page => Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
++            // page-break-{before,after} only ever accepted this legacy
++            // five-value grammar; the fuller css-break-3 keywords this
++            // enum grew (recto/verso/column/avoid-*/region) were never
++            // part of it and must stay rejected here.
++            BreakBetween::Page
++            | BreakBetween::Recto
++            | BreakBetween::Verso
++            | BreakBetween::Column
++            | BreakBetween::AvoidPage
++            | BreakBetween::AvoidColumn
++            | BreakBetween::AvoidRegion
++            | BreakBetween::Region => {
++                Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            },
+         }
+     }
+
+@@ -2040,7 +2060,16 @@ impl BreakBetween {
+                 self.to_css(dest)
+             },
+             BreakBetween::Page => dest.write_str("always"),
+-            BreakBetween::Always => Ok(()),
++            // Unreachable via parse_legacy (which never produces these),
++            // but the match must stay exhaustive as the enum grows.
++            BreakBetween::Always
++            | BreakBetween::Recto
++            | BreakBetween::Verso
++            | BreakBetween::Column
++            | BreakBetween::AvoidPage
++            | BreakBetween::AvoidColumn
++            | BreakBetween::AvoidRegion
++            | BreakBetween::Region => Ok(()),
+         }
+     }
+ }
+@@ -2071,6 +2100,7 @@ pub enum BreakWithin {
+     Avoid,
+     AvoidPage,
+     AvoidColumn,
++    AvoidRegion,
+ }
+
+ impl BreakWithin {
+@@ -2083,7 +2113,7 @@ impl BreakWithin {
+         let break_value = BreakWithin::parse(input)?;
+         match break_value {
+             BreakWithin::Auto | BreakWithin::Avoid => Ok(break_value),
+-            BreakWithin::AvoidPage | BreakWithin::AvoidColumn => {
++            BreakWithin::AvoidPage | BreakWithin::AvoidColumn | BreakWithin::AvoidRegion => {
+                 Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+             },
+         }
+@@ -2099,7 +2129,7 @@ impl BreakWithin {
+     {
+         match *self {
+             BreakWithin::Auto | BreakWithin::Avoid => self.to_css(dest),
+-            BreakWithin::AvoidPage | BreakWithin::AvoidColumn => Ok(()),
++            BreakWithin::AvoidPage | BreakWithin::AvoidColumn | BreakWithin::AvoidRegion => Ok(()),
+         }
+     }
+ }
+diff --git a/values/specified/column.rs b/values/specified/column.rs
+index 71fec87..03c7828 100644
+--- a/values/specified/column.rs
++++ b/values/specified/column.rs
+@@ -36,6 +36,7 @@ pub type ColumnCount = GenericColumnCount<PositiveInteger>;
+ pub enum ColumnFill {
+     Balance,
+     Auto,
++    BalanceAll,
+ }
+
+ /// https://drafts.csswg.org/css-multicol/#propdef-column-span
+diff --git a/values/specified/image.rs b/values/specified/image.rs
+index 336baa3..c3f6d63 100644
+--- a/values/specified/image.rs
++++ b/values/specified/image.rs
+@@ -1328,8 +1328,12 @@ impl PaintWorklet {
+ #[repr(u8)]
+ pub enum ImageRendering {
+     Auto,
+-    #[cfg(feature = "gecko")]
+     Smooth,
++    /// Currently identical to `smooth` in behavior (the spec reserves
++    /// the two keywords for future divergence); kept as its own
++    /// variant, not an alias, so it round-trips through serialization
++    /// as `high-quality` rather than normalizing to `smooth`.
++    HighQuality,
+     #[parse(aliases = "-moz-crisp-edges")]
+     CrispEdges,
+     Pixelated,
+diff --git a/values/specified/transform.rs b/values/specified/transform.rs
+index 34b308b..8422bc2 100644
+--- a/values/specified/transform.rs
++++ b/values/specified/transform.rs
+@@ -37,16 +37,14 @@ pub type TransformOrigin = generic::TransformOrigin<
+     Length,
+ >;
+
+-#[cfg(feature = "gecko")]
++// content-box and stroke-box are both mature, shipping keywords (Firefox
++// and Chrome ship the full five-keyword grammar); this was staging gate
++// for gecko's own rollout, not a servo/gecko divergence, so servo gets
++// the same unconditional true.
+ fn all_transform_boxes_are_enabled(_context: &ParserContext) -> bool {
+     true
+ }
+
+-#[cfg(feature = "servo")]
+-fn all_transform_boxes_are_enabled(_context: &ParserContext) -> bool {
+-    false
+-}
+-
+ /// The specified value of `transform-box`.
+ /// https://drafts.csswg.org/css-transforms-1/#transform-box
+ // Note: Once we ship everything, we can drop this and just use single_keyword for tranform-box.
+diff --git a/values/specified/ui.rs b/values/specified/ui.rs
+index c62b36d..64740a5 100644
+--- a/values/specified/ui.rs
++++ b/values/specified/ui.rs
+@@ -274,20 +274,15 @@ pub enum MozTheme {
+ pub enum PointerEvents {
+     Auto,
+     None,
+-    #[cfg(feature = "gecko")]
++    // The SVG keywords parse in servo too: a page writes `pointer-events:
++    // all` on HTML to undo an inherited `none`, and dropping it as invalid
++    // left the element unhittable. On HTML they all behave as `auto`.
+     Visiblepainted,
+-    #[cfg(feature = "gecko")]
+     Visiblefill,
+-    #[cfg(feature = "gecko")]
+     Visiblestroke,
+-    #[cfg(feature = "gecko")]
+     Visible,
+-    #[cfg(feature = "gecko")]
+     Painted,
+-    #[cfg(feature = "gecko")]
+     Fill,
+-    #[cfg(feature = "gecko")]
+     Stroke,
+-    #[cfg(feature = "gecko")]
+     All,
+ }

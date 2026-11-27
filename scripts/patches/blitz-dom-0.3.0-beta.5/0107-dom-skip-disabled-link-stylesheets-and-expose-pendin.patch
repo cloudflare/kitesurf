@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 01:21:57 +0000
+Subject: [PATCH] dom: skip disabled link stylesheets and expose pending image
+ waiter check
+
+Skip fetching <link rel="stylesheet" disabled> until the disabled attribute
+is cleared, keep non-matching media stylesheets out of critical-resource
+blocking so they do not delay DOMContentLoaded, and expose
+has_pending_image_waiter so the embedder can drop superseded image fetches
+without affecting CSS background images.
+---
+ src/document.rs |  7 +++++++
+ src/mutator.rs  | 13 ++++++++++++-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 95b454b..b8d262d 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -2879,6 +2879,13 @@ impl BaseDocument {
+             .unwrap_or_default()
+     }
+
++    /// True if any element (whether `<img>` or CSS background) is still waiting on `url`.
++    pub fn has_pending_image_waiter(&self, url: &str) -> bool {
++        self.pending_images
++            .get(url)
++            .is_some_and(|waiting| !waiting.is_empty())
++    }
++
+     /// Whether `node_id` is currently waiting on an
+     /// in-flight image fetch (any URL). Complements image_cache_has
+     /// for the srcset case: the JS side can't re-run candidate
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 6be1c0a..6f6f28b 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -783,6 +783,10 @@ impl DocumentMutator<'_> {
+             self.recompute_is_animating = true;
+         } else if (tag, attr) == tag_and_attr!("link", "href") {
+             self.unload_stylesheet(node_id);
++        } else if (tag, attr) == tag_and_attr!("link", "disabled") && node_is_in_document {
++            if !self.doc.nodes_to_stylesheet.contains_key(&node_id) {
++                self.load_linked_stylesheet(node_id);
++            }
+         } else if (tag, attr) == tag_and_attr!("iframe", "srcdoc") && node_is_in_document {
+             // Fall back to loading from the `src` attribute (if any)
+             self.load_iframe(node_id);
+@@ -1948,6 +1952,9 @@ impl<'doc> DocumentMutator<'doc> {
+         {
+             return;
+         }
++        if node.attr(local_name!("disabled")).is_some() {
++            return;
++        }
+
+         // A `crossorigin` attribute (any value, including the
+         // empty string) puts the CSS fetch in mode "cors"; its absence
+@@ -1961,6 +1968,10 @@ impl<'doc> DocumentMutator<'doc> {
+         // Carry the media attribute to the parse so the built
+         // sheet is scoped to it (print sheets must not apply on screen).
+         let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
++        let render_blocking_media = match media_attr.as_deref().map(str::trim) {
++            None | Some("") => true,
++            Some(m) => m.eq_ignore_ascii_case("all") || m.eq_ignore_ascii_case("screen"),
++        };
+
+         let Some(url) = self.doc.resolve_url(href) else {
+             return;
+@@ -1983,7 +1994,7 @@ impl<'doc> DocumentMutator<'doc> {
+             },
+         );
+
+-        if is_in_head && !self.doc.net_provider.is_noop() {
++        if is_in_head && render_blocking_media && !self.doc.net_provider.is_noop() {
+             self.doc
+                 .pending_critical_resources
+                 .insert(handler.request_id());

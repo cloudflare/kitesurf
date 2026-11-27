@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 22 Sep 2026 22:24:26 +0100
+Subject: [PATCH] Fix line breaks around out-of-flow and atomic inline boxes
+
+parley already gives a line without in-flow content an invisible,
+zero-height line box. Keep one exception: a line that ends in a forced
+break (`<br>`, a preserved newline) keeps its line box, as the forced
+break generates one whether or not anything in-flow lands on it.
+
+The exception is keyed on the line's own break, not the previous line's.
+A line that only follows a forced break and holds nothing but
+out-of-flow boxes is still invisible: Chrome lays `text<br><br><abs>`
+out as two lines, and `text<br><abs><br>x` as three.
+
+parley 0.13 shapes in-flow boxes as inline objects, whose wrap
+opportunities follow the lagged text-wrap-mode like text. The breaker
+started that mode at the default (wrap), so inline-blocks opening a
+white-space:nowrap paragraph got an opportunity before any text; seed
+the mode from the first style run.
+---
+ src/layout/line_break.rs | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
+index b3c23ab..a73fe96 100644
+--- a/src/layout/line_break.rs
++++ b/src/layout/line_break.rs
+@@ -926,10 +926,18 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+         lines.lines.clear();
+         lines.line_items.clear();
+         lines.aligned_subtree_offsets.clear();
++        // The lagged wrap mode starts from the paragraph's first
++        // style, not `Wrap`, so a paragraph that opens with an inline box
++        // inside `white-space: nowrap` doesn't get a break opportunity
++        // (or a hanging-space break) before any text has been seen.
++        let mut state = BreakerState::default();
++        if let Some(style) = layout.data.styles.first() {
++            state.line.text_wrap_mode = style.text_wrap_mode;
++        }
+         let mut this = Self {
+             layout,
+             lines,
+-            state: BreakerState::default(),
++            state,
+             prev_state: None,
+             done: false,
+         };
+@@ -973,8 +981,15 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+         // A line containing only out-of-flow boxes (and no text) is an invisible line box with
+         // zero height; the strut only applies once the line has content. The trailing empty line
+         // after a final newline has no items and keeps the strut so the cursor has a position.
++        //
++        // A forced break (`<br>`, a preserved newline) generates a
++        // line box whether or not anything in-flow lands on it, so a line that
++        // ends in one is never invisible, even when its only content is
++        // out-of-flow (CSS position:absolute/fixed) boxes.
++        let ends_in_forced_break = reason == BreakReason::Explicit;
+         let invisible = !self.state.line.box_metrics.has_content
+-            && !self.lines.lines.last().unwrap().item_range.is_empty();
++            && !self.lines.lines.last().unwrap().item_range.is_empty()
++            && !ends_in_forced_break;
+         let line_height = if invisible {
+             0.
+         } else {

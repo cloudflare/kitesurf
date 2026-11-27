@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 20 Nov 2026 20:09:18 +0000
+Subject: [PATCH] Add PaintScene::glyph_text for a scene's text layer
+
+Let a painter give the source text of the next draw_glyphs call and,
+per glyph, the byte range it was shaped from, so a backend with a text
+layer (a PDF) can map glyphs back to characters. wants_glyph_text lets
+the painter skip the work for pixel backends; both default to nothing.
+
+Signed-off-by: Rui Figueira <rfigueira@cloudflare.com>
+---
+ src/lib.rs | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 5f0c51c..0d0e41e 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -240,5 +240,19 @@ pub trait PaintScene: RenderContext {
+     /// Close the most recent `begin_part`.
+     fn end_part(&mut self) {}
+
++    /// Whether the scene uses [`Self::glyph_text`]. A painter calls it
++    /// only when this is true, so pixel backends pay nothing for it.
++    fn wants_glyph_text(&self) -> bool {
++        false
++    }
++
++    /// Give the source text of the next `draw_glyphs` call: for each of
++    /// its glyphs, in draw order, the byte range of `text` that the
++    /// glyph was shaped from. A text layer (such as a PDF's) uses it to
++    /// map shaped glyphs back to the characters they show.
++    ///
++    /// Defaults to nothing.
++    fn glyph_text(&mut self, _text: &str, _glyph_ranges: &[core::ops::Range<usize>]) {}
++
+     /// Removes all content from the scene
+     fn reset(&mut self);

@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 12:21:02 +0000
+Subject: [PATCH] Restyle the whole parent when a relative selector or dir=auto
+ can reach it
+
+An inserted element can change an earlier sibling's match when a :has() starts with + or ~. An
+inserted element only inherits its parent's search direction, which never carries the sibling one,
+so the invalidator misses those anchors and the insertion has to restyle the whole parent. It can
+also change a parent's direction when the parent is <bdi> or dir=auto, whose direction comes from
+its descendants' text and no selector flag covers.
+
+Restyle the whole parent for either, rather than only the structurally affected siblings.
+---
+ src/mutator.rs         | 37 ++++++++++++++++++++++++++++++++++++-
+ src/stylo/traversal.rs |  2 +-
+ 2 files changed, 37 insertions(+), 2 deletions(-)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index fc3191b..b7ebfa4 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -27,6 +27,24 @@ use thin_vec::ThinVec;
+
+ const TEMPLATE_CONTENTS_FRAGMENT_NAME: &str = "#document-fragment";
+
++/// Whether inserting a child must recascade the parent's whole subtree: a flat tree that
++/// slotting reshapes, or a direction that comes from content. Anything else goes through
++/// `restyle_for_child_list_change`, which reads the parent's selector flags.
++fn insertion_restyles_whole_parent(parent: &Node) -> bool {
++    if !parent.is_element() || parent.is_slot_element() || parent.attached_shadow_root_id().is_some()
++    {
++        return true;
++    }
++    // `dir=auto` and `<bdi>` take their direction from their descendants' text, and no selector
++    // flag covers that.
++    parent
++        .element_data()
++        .is_some_and(|data| data.name.local == local_name!("bdi"))
++        || parent
++            .attr(local_name!("dir"))
++            .is_some_and(|dir| dir.eq_ignore_ascii_case("auto"))
++}
++
+ macro_rules! tag_and_attr {
+     ($tag:tt, $attr:tt) => {
+         (&local_name!($tag), &local_name!($attr))
+@@ -1124,12 +1142,29 @@ impl DocumentMutator<'_> {
+             self.maybe_record_node(old_parent_id);
+         }
+
++        let has_relative_selectors =
++            new_parent_is_in_document && self.doc.has_relative_selectors();
+         let new_parent = &mut self.doc.nodes[parent_id];
+         new_parent.insert_damage(ALL_DAMAGE);
+         let index = insert_children_fn(new_parent, child_ids);
+
++        let restyle_whole_parent = new_parent_is_in_document
++            && (insertion_restyles_whole_parent(new_parent) || has_relative_selectors);
+         if new_parent_is_in_document {
+-            self.restyle_for_child_list_change(parent_id, index..index + child_ids.len());
++            if restyle_whole_parent {
++                let new_parent = &mut self.doc.nodes[parent_id];
++                if let Some(mut data) = new_parent
++                    .try_stylo_element_data_mut()
++                    .and_then(|s| s.get_mut())
++                {
++                    data.hint |= RestyleHint::restyle_subtree();
++                }
++                new_parent.set_dirty_descendants();
++                // Mark ancestors dirty so the style traversal visits this subtree.
++                new_parent.mark_ancestors_dirty();
++            } else {
++                self.restyle_for_child_list_change(parent_id, index..index + child_ids.len());
++            }
+         }
+
+         for child_id in child_ids.iter().copied() {
+diff --git a/src/stylo/traversal.rs b/src/stylo/traversal.rs
+index b5c65d8..f685da8 100644
+--- a/src/stylo/traversal.rs
++++ b/src/stylo/traversal.rs
+@@ -392,7 +392,7 @@ impl crate::document::BaseDocument {
+     ///
+     /// `iter_origins` only sees document-level origins, so any shadow root
+     /// forces the slow path rather than risk missing a shadow `:has()`.
+-    fn has_relative_selectors(&self) -> bool {
++    pub(crate) fn has_relative_selectors(&self) -> bool {
+         !self.shadow_roots.is_empty()
+             || self
+                 .stylist

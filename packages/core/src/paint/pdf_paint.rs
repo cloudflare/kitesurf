@@ -10,8 +10,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyrender::{Glyph as AnyGlyph, NormalizedCoord, PaintRef, RenderContext};
-use kurbo::{Affine, PathEl, Rect, Shape, Stroke};
+use anyrender::{
+    AntiAliasing, BoxShadowKind, Glyph as AnyGlyph, MaskMode, NonUniformRoundedRect,
+    NormalizedCoord, Paint, PaintRef, RenderContext,
+};
+use kurbo::{Affine, PathEl, Shape, Stroke, Vec2};
 use peniko::{BlendMode, Color, Compose, Fill as PenikoFill, Mix, StyleRef};
 
 use krilla::blend::BlendMode as KrillaBlendMode;
@@ -38,6 +41,10 @@ pub struct KrillaPaintScene<'a, 'b> {
     surface: &'a mut Surface<'b>,
     font_cache: HashMap<FontKey, CachedFont>,
     layer_pops: Vec<u32>,
+    /// One entry per open layer: whether it is a mask layer. PDF cannot mask what is already
+    /// on the page, so a mask layer's content is dropped and the masked content prints unmasked.
+    mask_layers: Vec<bool>,
+    mask_depth: u32,
     pending_text: String,
     pending_text_ranges: Vec<std::ops::Range<usize>>,
 }
@@ -48,6 +55,8 @@ impl<'a, 'b> KrillaPaintScene<'a, 'b> {
             surface,
             font_cache: HashMap::new(),
             layer_pops: Vec::with_capacity(16),
+            mask_layers: Vec::with_capacity(16),
+            mask_depth: 0,
             pending_text: String::new(),
             pending_text_ranges: Vec::new(),
         }
@@ -140,6 +149,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         }
         pops += self.push_clip(fill, _transform, clip);
         self.layer_pops.push(pops);
+        self.mask_layers.push(false);
     }
 
     fn push_clip_layer(&mut self, fill: PenikoFill, transform: Affine, clip: &impl Shape) {
@@ -147,9 +157,25 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         // makes rounded `<img>` boxes square in PDFs while raster keeps the corners.
         let pops = self.push_clip(fill, transform, clip);
         self.layer_pops.push(pops);
+        self.mask_layers.push(false);
+    }
+
+    fn push_mask_layer(
+        &mut self,
+        _fill: PenikoFill,
+        _mode: MaskMode,
+        _transform: Affine,
+        _clip: &impl Shape,
+    ) {
+        self.layer_pops.push(0);
+        self.mask_layers.push(true);
+        self.mask_depth += 1;
     }
 
     fn pop_layer(&mut self) {
+        if self.mask_layers.pop() == Some(true) {
+            self.mask_depth -= 1;
+        }
         let n = self.layer_pops.pop().unwrap_or(0);
         for _ in 0..n {
             self.surface.pop();
@@ -161,10 +187,26 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         style: &Stroke,
         transform: Affine,
         brush: impl Into<PaintRef<'p>>,
-        _brush_transform: Option<Affine>,
+        brush_transform: Option<Affine>,
         shape: &impl Shape,
+        _anti_aliasing: AntiAliasing,
     ) {
+        if self.mask_depth > 0 {
+            return;
+        }
         let paint_ref: PaintRef<'p> = brush.into();
+        if let Paint::Pattern(pattern) = paint_ref {
+            anyrender::stroke_pattern_tiles(
+                self,
+                pattern,
+                style,
+                transform,
+                brush_transform,
+                shape,
+                None,
+            );
+            return;
+        }
         let color = paint_ref_to_solid_color(&paint_ref);
 
         let pushed_transform = if !affine_is_identity(transform) {
@@ -201,10 +243,26 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         style: PenikoFill,
         transform: Affine,
         brush: impl Into<PaintRef<'p>>,
-        _brush_transform: Option<Affine>,
+        brush_transform: Option<Affine>,
         shape: &impl Shape,
+        _anti_aliasing: AntiAliasing,
     ) {
+        if self.mask_depth > 0 {
+            return;
+        }
         let paint_ref: PaintRef<'p> = brush.into();
+        if let Paint::Pattern(pattern) = paint_ref {
+            anyrender::fill_pattern_tiles(
+                self,
+                pattern,
+                style,
+                transform,
+                brush_transform,
+                shape,
+                None,
+            );
+            return;
+        }
 
         let pushed_transform = if !affine_is_identity(transform) {
             self.surface.push_transform(&affine_to_krilla(transform));
@@ -258,26 +316,48 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         &'s mut self,
         font: &'p peniko::FontData,
         font_size: f32,
-        _hint: bool,
+        hint: bool,
         normalized_coords: &'p [NormalizedCoord],
-        _embolden: kurbo::Vec2,
-        _style: impl Into<StyleRef<'p>>,
+        embolden: kurbo::Vec2,
+        style: impl Into<StyleRef<'p>>,
         brush: impl Into<PaintRef<'p>>,
         brush_alpha: f32,
         transform: Affine,
         glyph_transform: Option<Affine>,
         glyphs: impl Iterator<Item = AnyGlyph> + Clone,
+        _anti_aliasing: AntiAliasing,
     ) {
         // Text given for this run applies to it alone.
         let source_text = std::mem::take(&mut self.pending_text);
         let mut source_ranges = std::mem::take(&mut self.pending_text_ranges);
+        if self.mask_depth > 0 {
+            return;
+        }
+        let paint_ref: PaintRef<'p> = brush.into();
+        if let Paint::Pattern(pattern) = paint_ref {
+            anyrender::draw_glyphs_pattern_tiles(
+                self,
+                pattern,
+                font,
+                font_size,
+                hint,
+                normalized_coords,
+                embolden,
+                style,
+                brush_alpha,
+                transform,
+                glyph_transform,
+                glyphs,
+                None,
+            );
+            return;
+        }
         let (krilla_font, gid_to_char) =
             match get_or_register_font(&mut self.font_cache, font, normalized_coords) {
                 Some(c) => (c.font.clone(), c.gid_to_char.clone()),
                 None => return,
             };
 
-        let paint_ref: PaintRef<'p> = brush.into();
         let mut color = paint_ref_to_solid_color(&paint_ref);
         color.a = ((color.a as f32) * brush_alpha.clamp(0.0, 1.0)).round() as u8;
 
@@ -372,10 +452,12 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
     fn draw_box_shadow(
         &mut self,
         _transform: Affine,
-        _rect: Rect,
-        _brush: Color,
-        _radius: f64,
+        _box_shape: &NonUniformRoundedRect,
+        _offset: Vec2,
+        _spread: f64,
         _std_dev: f64,
+        _color: Color,
+        _kind: BoxShadowKind,
     ) {
     }
 }

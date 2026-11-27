@@ -26,7 +26,7 @@ impl DomHandle {
             return false;
         }
 
-        doc.snapshot_node(nid);
+        doc.snapshot_node_state_only(nid);
 
         {
             use blitz_dom::local_name;
@@ -100,7 +100,7 @@ impl DomHandle {
                 if !v.is_finite() {
                     return false;
                 }
-                doc.snapshot_node(nid);
+                doc.snapshot_node_state_only(nid);
                 if let Some(elem) = doc.get_node_mut(nid).and_then(|n| n.element_data_mut()) {
                     elem.set_special_data(SpecialElementData::RangeInput(Box::new(v)));
                 }

@@ -1,0 +1,480 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 31 Jul 2026 23:30:32 +0100
+Subject: [PATCH] Enable gecko-gated properties and values in the servo build
+
+Each of these was gated to the gecko engine although nothing
+gecko-specific backs it. Dropping the gate lets the servo build parse
+and compute it.
+
+Stylo 0.24 already moved many former gecko-only properties and values
+to the servo build behind servo_pref prefs (appearance, counter-set,
+font-size-adjust, font-synthesis-*, font-variant-emoji, the
+font-variant-caps extra values, hyphens, hyphenate-*, text-autospace,
+text-emphasis-*, text-underline-position, text-decoration-inset,
+text-orientation, text-combine-upright, text-wrap-style,
+-webkit-text-fill-color, box-decoration-break, the anchor-position
+properties, background-clip:text and word-break:break-word). Those keep
+upstream's pref gating; the embedder enables the prefs it wants. This
+patch covers the rest.
+
+accent-color: the embedder's form-control paint (checkbox, radio, range)
+reads it to colour the widgets like real browsers, instead of falling
+back to the element's text colour.
+
+break-before, break-after and break-inside: print stylesheets set
+break-inside:avoid on nearly every table and figure, and without the
+parse a PDF pipeline can never honour them. Fragmentation itself is not
+implemented here.
+
+clip-rule, flood-color and lighting-color: FillRule and Color are
+already compiled for servo (used by clip-path, fill, stop-color and
+others). Nothing downstream consumes them for paint, since SVG filter
+primitives aren't implemented.
+
+background-attachment:local was gecko-only, so the servo build rejected
+it. The background shorthand drops the whole declaration when any layer
+keyword fails to parse, so stylesheets using scroll shadows
+(background-attachment: local) lost their entire background, not just
+the modern keyword. Un-gate the Local variant.
+
+The legacy multiline-ellipsis pattern (display:-webkit-box,
+-webkit-box-orient:vertical and -webkit-line-clamp:N) needs three
+gecko-gated pieces:
+
+- the WebkitBox display variant (with its parse arms, consts and
+  FlowRoot const);
+- the line-clamp property. Servo gets the line-clamp longhand behind
+  layout.css.line-clamp.enabled (like gecko) and the -webkit-line-clamp
+  legacy shorthand unconditionally;
+- -moz-box-orient (struct xul, generated fresh for servo like the
+  fill/InheritedSVG precedent), whose -webkit-box-orient alias carries
+  the spelling the web uses.
+
+Also un-gate adjust_for_webkit_line_clamp (the Blink-matching
+computed-value rewrite of the clamp trio to flow-root) and set a new
+IS_WEBKIT_LINE_CLAMP_CONTEXT flag when it fires. Layout cannot otherwise
+tell an adjusted flow-root from an authored one, and the clamp must not
+apply to plain blocks that merely set the property.
+
+The remaining parse-only properties:
+
+- css-fonts: font-palette
+- css-shapes: shape-outside, shape-margin, shape-image-threshold
+- text-decor: text-decoration-skip-ink
+- multicol: column-rule-{style,color,width}, column-fill (and the
+  column-rule shorthand)
+- contain-intrinsic-{width,height,block-size,inline-size} (and the
+  contain-intrinsic-size shorthand)
+- others: resize, field-sizing, transform-box, image-orientation,
+  scrollbar-gutter, and the page-break-* legacy shorthands
+
+The handwritten column-rule shorthand module in shorthands.rs was
+cfg(gecko)-gated; un-gate it. Servo's font style struct derives serde,
+so FontPalette gains the same cfg_attr(servo) serde derive the sibling
+types carry.
+
+content-visibility stays gecko-gated: its Animate impl is gecko-only,
+and whether blitz honours 'hidden' is unverified.
+
+Co-authored-by: Rui Figueira <rfigueira@cloudflare.com>
+Co-authored-by: Ruskin Constant <ruskin@cloudflare.com>
+---
+ properties/computed_value_flags.rs |  3 +++
+ properties/longhands.toml          | 26 --------------------------
+ properties/shorthands.rs           |  1 -
+ properties/shorthands.toml         |  6 ------
+ style_adjuster.rs                  |  4 ++--
+ values/specified/background.rs     |  1 -
+ values/specified/box.rs            |  7 -------
+ values/specified/font.rs           |  1 +
+ 8 files changed, 6 insertions(+), 43 deletions(-)
+
+diff --git a/properties/computed_value_flags.rs b/properties/computed_value_flags.rs
+index 2dcded8..cf4ad8d 100644
+--- a/properties/computed_value_flags.rs
++++ b/properties/computed_value_flags.rs
+@@ -143,6 +143,9 @@ bitflags! {
+
+         /// Whether this style uses an element-scoped `random()`.
+         const USES_ELEMENT_SCOPED_RANDOM = 1 << 29;
++
++        /// Whether the legacy WebKit line-clamp adjustment rewrote display.
++        const IS_WEBKIT_LINE_CLAMP_CONTEXT = 1 << 30;
+     }
+ }
+
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index ce8a6b6..4e1595e 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -129,7 +129,6 @@ affects = "layout"
+ type = "ColorOrAuto"
+ initial = "generics::color::ColorOrAuto::Auto"
+ struct = "inherited_ui"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-ui-4/#widget-accent"
+ ignored_when_colors_disabled = true
+ affects = "paint"
+@@ -473,7 +472,6 @@ affects = "overflow"
+ type = "BreakBetween"
+ initial = "computed::BreakBetween::Auto"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-break/#propdef-break-after"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -482,7 +480,6 @@ affects = "layout"
+ type = "BreakBetween"
+ initial = "computed::BreakBetween::Auto"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-break/#propdef-break-before"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -491,7 +488,6 @@ affects = "layout"
+ type = "BreakWithin"
+ initial = "computed::BreakWithin::Auto"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-break/#propdef-break-inside"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -545,7 +541,6 @@ servo_restyle_damage = "rebuild_stacking_context"
+ type = "FillRule"
+ initial = "Default::default()"
+ struct = "inherited_svg"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://svgwg.org/svg2-draft/masking.html#ClipRuleProperty"
+ affects = "paint"
+@@ -591,7 +586,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed_value::T::currentcolor()"
+ struct = "column"
+-engine = "gecko"
+ ignored_when_colors_disabled = true
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-color"
+ affects = "paint"
+@@ -600,7 +594,6 @@ affects = "paint"
+ type = "BorderStyle"
+ initial = "computed::BorderStyle::None"
+ struct = "column"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-style"
+ affects = "paint"
+@@ -609,7 +602,6 @@ affects = "paint"
+ type = "BorderSideWidth"
+ initial = "computed::BorderSideWidth::medium()"
+ struct = "column"
+-engine = "gecko"
+ initial_specified_value = "specified::BorderSideWidth::medium()"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-width"
+ affects = "layout"
+@@ -636,7 +628,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ logical = true
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+@@ -646,7 +637,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ affects = "layout"
+@@ -655,7 +645,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ logical = true
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+@@ -665,7 +654,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ affects = "layout"
+@@ -844,7 +832,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed::Color::BLACK"
+ struct = "svg"
+-engine = "gecko"
+ spec = "https://drafts.fxtf.org/filter-effects-1/#FloodColorProperty"
+ affects = "paint"
+
+@@ -890,7 +877,6 @@ affects = "layout"
+ type = "FontPalette"
+ initial = "computed::FontPalette::normal()"
+ struct = "font"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts/#font-palette-prop"
+ affects = "layout"
+@@ -1255,7 +1241,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed::Color::WHITE"
+ struct = "svg"
+-engine = "gecko"
+ spec = "https://drafts.fxtf.org/filter-effects-1#LightingColorProperty"
+ affects = "paint"
+
+@@ -1789,7 +1774,6 @@ affects = "layout"
+ type = "Resize"
+ initial = "computed::Resize::None"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ gecko_ffi_name = "mResize"
+ spec = "https://drafts.csswg.org/css-ui/#propdef-resize"
+@@ -1930,7 +1914,6 @@ affects = "paint"
+ type = "ScrollbarGutter"
+ initial = "computed::ScrollbarGutter::AUTO"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-overflow-3/#scrollbar-gutter-property"
+ affects = "layout"
+@@ -1939,7 +1922,6 @@ affects = "layout"
+ type = "Opacity"
+ initial = "0.0"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-image-threshold-property"
+ affects = "layout"
+
+@@ -1947,7 +1929,6 @@ affects = "layout"
+ type = "NonNegativeLengthPercentage"
+ initial = "computed::NonNegativeLengthPercentage::zero()"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-margin-property"
+ affects = "layout"
+
+@@ -1955,7 +1936,6 @@ affects = "layout"
+ type = "basic_shape::ShapeOutside"
+ initial = "generics::basic_shape::ShapeOutside::None"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-outside-property"
+ affects = "layout"
+
+@@ -2114,7 +2094,6 @@ affects = "overflow"
+ type = "TransformBox"
+ initial = "computed::TransformBox::ViewBox"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-transforms/#transform-box"
+ animation_type = "discrete"
+ affects = "overflow"
+@@ -2632,7 +2611,6 @@ affects = "layout"
+ type = "TextDecorationSkipInk"
+ initial = "computed::TextDecorationSkipInk::Auto"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor-4/#text-decoration-skip-ink-property"
+ affects = "overflow"
+@@ -3767,7 +3745,6 @@ initial = "computed::Orient::Inline"
+
+ [column-fill]
+ struct = "column"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-fill"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3900,7 +3877,6 @@ initial = "computed::TextOrientation::Mixed"
+
+ [image-orientation]
+ struct = "inherited_box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-images/#propdef-image-orientation"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -4246,7 +4222,6 @@ initial = "computed::WindowShadow::Auto"
+
+ [field-sizing]
+ struct = "ui"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-ui/#field-sizing"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -4278,7 +4253,6 @@ initial = "computed::BoxDirection::Normal"
+
+ [-moz-box-orient]
+ struct = "xul"
+-engine = "gecko"
+ spec = "Nonstandard (https://developer.mozilla.org/en-US/docs/Web/CSS/box-orient)"
+ animation_type = "discrete"
+ affects = "layout"
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index 35c75ea..d389ffc 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -810,7 +810,6 @@ pub mod columns {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod column_rule {
+     pub use crate::properties::generated::shorthands::column_rule::*;
+
+diff --git a/properties/shorthands.toml b/properties/shorthands.toml
+index 6b55741..b470233 100644
+--- a/properties/shorthands.toml
++++ b/properties/shorthands.toml
+@@ -218,19 +218,16 @@ sub_properties = ["alignment-baseline", "baseline-shift", "baseline-source"]
+ spec = "https://drafts.csswg.org/css-inline-3/#transverse-alignment"
+
+ [page-break-before]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND"
+ sub_properties = ["break-before"]
+ spec = "https://drafts.csswg.org/css-break-3/#page-break-properties"
+
+ [page-break-after]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND"
+ sub_properties = ["break-after"]
+ spec = "https://drafts.csswg.org/css-break-3/#page-break-properties"
+
+ [page-break-inside]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND"
+ sub_properties = ["break-inside"]
+ spec = "https://drafts.csswg.org/css-break-3/#page-break-properties"
+@@ -285,7 +282,6 @@ rule_types_allowed = ["style", "keyframe", "position-try"]
+ kind = "two_properties"
+
+ [contain-intrinsic-size]
+-engine = "gecko"
+ sub_properties = ["contain-intrinsic-width", "contain-intrinsic-height"]
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ kind = "two_properties"
+@@ -476,7 +472,6 @@ spec = "https://drafts.csswg.org/css-multicol/#propdef-columns"
+ servo_pref = "layout.css.columns.enabled"
+
+ [column-rule]
+-engine = "gecko"
+ sub_properties = ["column-rule-width", "column-rule-style", "column-rule-color"]
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule"
+ derive_serialize = true
+@@ -556,7 +551,6 @@ spec = "https://compat.spec.whatwg.org/#the-webkit-text-stroke"
+ derive_serialize = true
+
+ [-webkit-line-clamp]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND ALLOWS_DISABLED_SUBPROPERTIES"
+ sub_properties = ["line-clamp"]
+ spec = "https://drafts.csswg.org/css-overflow-4/#webkit-line-clamp"
+diff --git a/style_adjuster.rs b/style_adjuster.rs
+index 9aa2eee..5196523 100644
+--- a/style_adjuster.rs
++++ b/style_adjuster.rs
+@@ -159,7 +159,6 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
+     /// This makes the element not be a flex container, with all that it
+     /// implies, but it should be safe. It matches blink, see
+     /// https://bugzilla.mozilla.org/show_bug.cgi?id=1786147#c10
+-    #[cfg(feature = "gecko")]
+     fn adjust_for_webkit_line_clamp(&mut self) {
+         use crate::properties::longhands::_moz_box_orient::computed_value::T as BoxOrient;
+         use crate::values::specified::box_::{DisplayInside, DisplayOutside};
+@@ -184,6 +183,8 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
+         self.style
+             .mutate_box()
+             .set_adjusted_display(new_display, false);
++        self.style
++            .add_flags(ComputedValueFlags::IS_WEBKIT_LINE_CLAMP_CONTEXT);
+     }
+
+     /// CSS 2.1 section 9.7:
+@@ -1073,7 +1074,6 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
+         }
+         self.adjust_for_top_layer();
+         self.blockify_if_necessary(layout_parent_style, element);
+-        #[cfg(feature = "gecko")]
+         self.adjust_for_webkit_line_clamp();
+         self.adjust_for_position();
+         self.adjust_for_overflow();
+diff --git a/values/specified/background.rs b/values/specified/background.rs
+index 387ed21..2346cba 100644
+--- a/values/specified/background.rs
++++ b/values/specified/background.rs
+@@ -369,6 +369,5 @@ impl From<BackgroundOrigin> for BackgroundClip {
+ pub enum ImageLayerAttachment {
+     Scroll,
+     Fixed,
+-    #[cfg(feature = "gecko")]
+     Local,
+ }
+diff --git a/values/specified/box.rs b/values/specified/box.rs
+index e859d27..520bec6 100644
+--- a/values/specified/box.rs
++++ b/values/specified/box.rs
+@@ -171,7 +171,6 @@ pub enum DisplayInside {
+     RubyText,
+     #[cfg(feature = "gecko")]
+     RubyTextContainer,
+-    #[cfg(feature = "gecko")]
+     WebkitBox,
+ }
+
+@@ -239,7 +238,6 @@ impl Display {
+     );
+     pub const Block: Self =
+         Self(((DisplayOutside::Block as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::Flow as u16);
+-    #[cfg(feature = "gecko")]
+     pub const FlowRoot: Self = Self(
+         ((DisplayOutside::Block as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::FlowRoot as u16,
+     );
+@@ -268,11 +266,9 @@ impl Display {
+     #[cfg(feature = "gecko")]
+     pub const Ruby: Self =
+         Self(((DisplayOutside::Inline as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::Ruby as u16);
+-    #[cfg(feature = "gecko")]
+     pub const WebkitBox: Self = Self(
+         ((DisplayOutside::Block as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::WebkitBox as u16,
+     );
+-    #[cfg(feature = "gecko")]
+     pub const WebkitInlineBox: Self = Self(
+         ((DisplayOutside::Inline as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::WebkitBox as u16,
+     );
+@@ -525,9 +521,7 @@ impl DisplayKeyword {
+             "ruby-text" => Full(Display::RubyText),
+             #[cfg(feature = "gecko")]
+             "ruby-text-container" => Full(Display::RubyTextContainer),
+-            #[cfg(feature = "gecko")]
+             "-webkit-box" => Full(Display::WebkitBox),
+-            #[cfg(feature = "gecko")]
+             "-webkit-inline-box" => Full(Display::WebkitInlineBox),
+
+             /// <display-outside> = block | inline | run-in
+@@ -561,7 +555,6 @@ impl ToCss for Display {
+         match *self {
+             Display::Block | Display::Inline => outside.to_css(dest),
+             Display::InlineBlock => dest.write_str("inline-block"),
+-            #[cfg(feature = "gecko")]
+             Display::WebkitInlineBox => dest.write_str("-webkit-inline-box"),
+             Display::TableCaption => dest.write_str("table-caption"),
+             _ => match (outside, inside) {
+diff --git a/values/specified/font.rs b/values/specified/font.rs
+index 8b65b3d..1b00256 100644
+--- a/values/specified/font.rs
++++ b/values/specified/font.rs
+@@ -1651,6 +1651,7 @@ pub enum FontSynthesisStyle {
+     ToShmem,
+     ToTyped,
+ )]
++#[cfg_attr(feature = "servo", derive(Serialize, Deserialize))]
+ #[repr(C)]
+ #[typed(todo_derive_fields)]
+ /// Allows authors to choose a palette from those supported by a color font

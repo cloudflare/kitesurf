@@ -1,0 +1,224 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 3 Nov 2026 08:40:35 +0000
+Subject: [PATCH] Rasterize recorded scenes in bounded row bands
+
+A caller renders a recorded scene band by band, without allocating its full pixel buffer, by
+passing a negative y offset (upstream's signed `RasterizerSettings::offset`). PreparedRender
+prepares glyph resources once and keeps them with the recorded context until every band is
+rendered, so a band cannot evict glyphs a later band needs. A band whose offset is negative is
+still fully covered by the scene, so it skips the explicit clear.
+---
+ src/lib.rs    |   3 +-
+ src/render.rs | 149 ++++++++++++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 140 insertions(+), 12 deletions(-)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 72c966d..6a71325 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -188,7 +188,8 @@ pub mod region;
+ pub mod span;
+
+ pub use render::{
+-    PixelFormat, RasterizerSettings, RenderContext, RenderSettings, Resources, TargetInit,
++    PixelFormat, PreparedRender, RasterizerSettings, RenderContext, RenderSettings, Resources,
++    TargetInit,
+ };
+ // Note: The first one is not something that should be
+ // exposed, but is currently needed by vello_tests.
+diff --git a/src/render.rs b/src/render.rs
+index 3dd6868..b2a158d 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -71,6 +71,47 @@ impl Resources {
+     }
+ }
+
++/// A recorded scene and its resources, kept alive while multiple regions are rasterized.
++#[derive(Debug)]
++pub struct PreparedRender {
++    context: RenderContext,
++    resources: Resources,
++    render_mode: RenderMode,
++}
++
++impl PreparedRender {
++    /// Consume a recorded scene and prepare its resources once for all regions.
++    pub fn new(
++        mut context: RenderContext,
++        mut resources: Resources,
++        render_mode: RenderMode,
++    ) -> Self {
++        assert!(
++            !context.dispatcher.has_layers(),
++            "some layers haven't been popped yet"
++        );
++        context.flush();
++        resources.before_render(render_mode);
++        Self {
++            context,
++            resources,
++            render_mode,
++        }
++    }
++
++    /// Render a region without evicting resources referenced by the recorded scene.
++    pub fn render_with<'a>(
++        &self,
++        target: impl Into<PixmapMut<'a>>,
++        mut settings: RasterizerSettings,
++    ) {
++        // The resources were prepared for this mode, so a caller's mode would mismatch them.
++        settings.render_mode = self.render_mode;
++        self.context
++            .rasterize_prepared(target.into(), &self.resources, settings);
++    }
++}
++
+ /// How the destination pixmap is initialized before rendering.
+ pub type TargetInit = vello_common::TargetInit<AlphaColor<Srgb>>;
+
+@@ -888,10 +929,23 @@ impl RenderContext {
+         );
+
+         resources.before_render(settings.render_mode);
+-        let mut target = target.into();
+-        let target_fully_covered = settings.offset == (0, 0)
+-            && self.width >= target.width()
+-            && self.height >= target.height();
++        self.rasterize_prepared(target.into(), resources, settings);
++        // Cached glyphs may be evicted only after this rendering is complete.
++        resources.after_render();
++    }
++
++    fn rasterize_prepared(
++        &self,
++        mut target: PixmapMut<'_>,
++        resources: &Resources,
++        settings: RasterizerSettings,
++    ) {
++        // A band of a taller scene is rendered with a negative y offset and is still covered.
++        let (dst_x, dst_y) = settings.offset;
++        let target_fully_covered = dst_x <= 0
++            && dst_y <= 0
++            && i32::from(self.width) + dst_x >= i32::from(target.width())
++            && i32::from(self.height) + dst_y >= i32::from(target.height());
+         // If the scene covers the whole pixmap than packing will take care
+         // of clearing everything anyway, so no reason to clear it explicitly
+         // here.
+@@ -930,12 +984,6 @@ impl RenderContext {
+             &self.encoded_paints,
+             &resources.image_registry,
+         );
+-        // TODO: We need to figure something out here API-wise. At the moment, the user can
+-        // theoretically rasterize the same `RenderContext` multiple times without resetting in-between.
+-        // However, if glyph caching is enabled, this method call could now evict that were previously
+-        // assumed to exist in `RenderContext`, meaning that if the user rasterizes the same `RenderContext`
+-        // again without resetting it, some of the cached glyphs might be stale and not exist anymore.
+-        resources.after_render();
+     }
+
+     /// Return the width of the scene.
+@@ -1018,7 +1066,9 @@ impl ImageResolver for ImageRegistry {
+ mod tests {
+     #[cfg(feature = "text")]
+     use crate::peniko::{Blob, FontData};
+-    use crate::{RasterizerSettings, RenderContext, Resources, TargetInit};
++    use crate::{
++        PreparedRender, RasterizerSettings, RenderContext, RenderMode, Resources, TargetInit,
++    };
+     #[cfg(feature = "text")]
+     use alloc::sync::Arc;
+     use alloc::vec;
+@@ -1039,6 +1089,27 @@ mod tests {
+         a: 255,
+     };
+
++    /// Rows per band in the `bands_match_full_frame` test.
++    const BAND_ROWS: u16 = 8;
++
++    /// Render `height` rows of a scene into `out`, `BAND_ROWS` rows at a time.
++    ///
++    /// `render` receives the first scene row, the row count, and the destination slice for one
++    /// band.
++    fn render_in_bands(
++        height: u16,
++        stride: usize,
++        out: &mut [u8],
++        mut render: impl FnMut(i32, u16, &mut [u8]),
++    ) {
++        for start in (0..height).step_by(usize::from(BAND_ROWS)) {
++            let rows = (height - start).min(BAND_ROWS);
++            let offset = usize::from(start) * stride;
++            let end = offset + usize::from(rows) * stride;
++            render(i32::from(start), rows, &mut out[offset..end]);
++        }
++    }
++
+     fn red_pixel() -> PremulRgba8 {
+         RED.premultiply().to_rgba8()
+     }
+@@ -1068,6 +1139,62 @@ mod tests {
+         ctx
+     }
+
++    #[test]
++    fn bands_match_full_frame() {
++        let (width, height) = (41u16, 37u16);
++        let mut ctx = RenderContext::new(width, height);
++        ctx.set_paint(RED);
++        ctx.fill_rect(&Rect::new(2.3, 3.7, 35.6, 30.2));
++        ctx.set_paint(BLUE);
++        ctx.fill_rect(&Rect::new(7.2, 12.1, 40.0, 36.4));
++        ctx.flush();
++
++        let mut resources = Resources::new();
++        let stride = usize::from(width) * 4;
++        let mut full = vec![0; stride * usize::from(height)];
++        ctx.render(
++            PixmapMut::new(width, height, &mut full).unwrap(),
++            &mut resources,
++        );
++
++        // A band rendered without an offset repeats the top of the scene, so the comparisons
++        // below only prove anything if the negative offset moves the origin.
++        let band_len = usize::from(BAND_ROWS) * stride;
++        let mut top_band = vec![0; band_len];
++        ctx.render(
++            PixmapMut::new(width, BAND_ROWS, &mut top_band).unwrap(),
++            &mut resources,
++        );
++        assert_ne!(top_band, full[band_len..2 * band_len]);
++
++        let mut joined = vec![0; full.len()];
++        render_in_bands(height, stride, &mut joined, |start, rows, band| {
++            ctx.render_with(
++                PixmapMut::new(width, rows, band).unwrap(),
++                &mut resources,
++                RasterizerSettings {
++                    offset: (0, -start),
++                    ..Default::default()
++                },
++            );
++        });
++        assert_eq!(joined, full);
++
++        let prepared = PreparedRender::new(ctx, resources, RenderMode::OptimizeSpeed);
++        // Every band is fully covered, so no stale byte may survive without an explicit clear.
++        joined.fill(0xAA);
++        render_in_bands(height, stride, &mut joined, |start, rows, band| {
++            prepared.render_with(
++                PixmapMut::new(width, rows, band).unwrap(),
++                RasterizerSettings {
++                    offset: (0, -start),
++                    ..Default::default()
++                },
++            );
++        });
++        assert_eq!(joined, full);
++    }
++
+     #[test]
+     fn clip_overflow() {
+         let mut ctx = RenderContext::new(100, 100);

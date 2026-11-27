@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 05:34:26 +0000
+Subject: [PATCH] Paint unblurred shadows of corner-shaped boxes along their
+ shape
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+beta.5 draws every box shadow through PaintScene::draw_box_shadow, which takes a
+rounded rect and cannot follow corner-shape. A box with a scoop, notch or
+superellipse corner cast a round shadow that showed past the cut, even at zero
+spread (WPT css-borders/corner-shape/render-corner-shape variants).
+
+An unblurred outset shadow of a corner-shaped box now fills the box's shaped
+contour grown by the spread, clipped to outside the box when the box can show
+it, as the box-shadow patch beta.5 dropped did. Blurred and inset shadows still
+use the rounded rect.
+
+beep-boop-🤖
+---
+ src/render/box_shadow.rs | 34 ++++++++++++++++++++++++++++++++--
+ 1 file changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/src/render/box_shadow.rs b/src/render/box_shadow.rs
+index 160888d..d29edda 100644
+--- a/src/render/box_shadow.rs
++++ b/src/render/box_shadow.rs
+@@ -1,9 +1,10 @@
+ use super::ElementCx;
+ use super::background::get_cyclic;
+ use crate::color::{Color, ToColorColor as _};
+-use anyrender::{BoxShadowKind, NonUniformRoundedRect, PaintScene};
++use anyrender::{AntiAliasing, BoxShadowKind, NonUniformRoundedRect, PaintScene};
+ use blitz_dom::CopyStyleGetters;
+-use kurbo::Vec2;
++use kurbo::{Affine, Insets, Shape, Vec2};
++use peniko::Fill;
+ use style::properties::generated::longhands::background_clip::single_value::computed_value::T as StyloBackgroundClip;
+ use style::values::computed::BoxShadow;
+
+@@ -85,6 +86,35 @@ impl ElementCx<'_, '_> {
+         // The standard deviation of a CSS shadow's blur is half of its blur radius
+         let std_dev = shadow.base.blur.px() as f64 * self.scale / 2.0;
+
++        // A rounded rect cannot follow `corner-shape`, so an unblurred outset shadow fills the
++        // spread shaped contour itself, clipped to outside the box when the box can show it.
++        if std_dev == 0.0 && kind != BoxShadowKind::Inset && self.frame.has_corner_shape() {
++            let shape =
++                Affine::translate(offset) * self.frame.shaped_contour(Insets::uniform(-spread));
++            let clip = kind == BoxShadowKind::Outset;
++            if clip {
++                let border_box = self.frame.shaped_contour(Insets::ZERO);
++                let mut area = shape
++                    .bounding_box()
++                    .union(border_box.bounding_box())
++                    .to_path(0.1);
++                area.extend(border_box.reverse_subpaths());
++                scene.push_clip_layer(Fill::NonZero, self.transform, &area);
++            }
++            scene.fill(
++                Fill::NonZero,
++                self.transform,
++                shadow_color,
++                None,
++                &shape,
++                AntiAliasing::Enabled,
++            );
++            if clip {
++                scene.pop_layer();
++            }
++            return;
++        }
++
+         scene.draw_box_shadow(
+             self.transform,
+             box_shape,

@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 01:02:24 +0000
+Subject: [PATCH] Keep xmlns:prefix declarations that the HTML parser left as
+ attributes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+beta.5's svg_source writes the namespace of each element instead of copying
+xmlns attributes, and drops every attribute whose name holds a colon. The HTML
+parser keeps a prefixed element such as <html:link> under a literal local name,
+and its xmlns:html declaration as a plain attribute. Without the declaration the
+source is not well-formed XML, usvg rejects it, and the whole SVG paints nothing
+(WPT svg/geometry and svg/shapes tests with html:link metadata).
+
+Keep plain xmlns:<prefix> attributes. Skip xmlns:xlink, which the root already
+declares.
+
+beep-boop-🤖
+---
+ src/node/serialize.rs | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 80d1063..596489a 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -87,6 +87,10 @@ fn write_xml_attr_name(
+     let namespace = attr.namespace();
+     match *namespace {
+         ns!(xmlns) => return false,
++        // The HTML parser keeps `xmlns:html` as a plain attribute and prefixed element names
++        // as literal local names (`html:link`), which need that declaration to stay valid XML.
++        // The root already declares `xlink`.
++        ns!() if local.starts_with("xmlns:") && local.as_str() != "xmlns:xlink" => {}
+         ns!() if local.contains(':') || local.as_str() == "xmlns" => return false,
+         ns!() => {}
+         ns!(xml) => writer.push_str("xml:"),

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+use blitz_dom::CopyStyleGetters as _;
 use blitz_dom::{BaseDocument, DocumentConfig};
 use blitz_html::{HtmlDocument, HtmlProvider};
 use blitz_traits::net::{Bytes, NetHandler, NetProvider, Request};

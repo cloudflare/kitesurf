@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 22:12:46 +0100
+Subject: [PATCH] Don't object-fit an inline svg that has no viewBox
+
+An inline svg element with no viewBox has no geometric scaling: user
+units are CSS px and the viewport only crops (SVG2 section 7.7). The
+usvg tree size for such documents is a synthesized natural size (300x150
+by default), so contain-fitting it against the content box letterboxed
+and shrank the content. A 100px-font <text> in a 100x100 svg painted at
+a third of its size, vertically centered (the reference side of WPT
+viewBox-scaling-text-001). Real viewBoxes (usvg bakes their transform
+into the tree) and replaced hosts (<img>) keep the object-fit path.
+
+The viewport clipping half of the original fix is upstream in beta.5:
+an <img> host clips to its viewport and an inline svg to its overflow.
+---
+ src/render.rs | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 8c08c3b..1ce7b08 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1372,6 +1372,21 @@ impl ElementCx<'_, '_> {
+         };
+         let object_position = self.style.get_object_position();
+
++        let is_inline_svg_element = self.node.data.is_element_with_tag_name(&local_name!("svg"));
++
++        // An inline <svg> without a viewBox has no geometric scaling: user
++        // units are CSS px and the viewport only crops (SVG2 section 7.7).
++        // The usvg tree size is a synthesized natural size there, so contain-fitting
++        // it would letterbox and shrink the content. Its clip is left to `overflow`.
++        if is_inline_svg_element && svg.viewbox_aspect_ratio().is_none() {
++            let transform = self
++                .transform
++                .pre_scale(self.scale)
++                .then_translate(Vec2 { x, y });
++            self.draw_svg_image(scene, &svg.tree, transform);
++            return;
++        }
++
+         // Apply object-fit algorithm
+         let container_size = taffy::Size { width, height };
+         let object_size = taffy::Size {
+@@ -1395,7 +1410,7 @@ impl ElementCx<'_, '_> {
+
+         // An inline `<svg>`'s `transform` attribute is applied inside the tree, so its
+         // viewport clip is left to `overflow`.
+-        if self.node.data.is_element_with_tag_name(&local_name!("svg")) {
++        if is_inline_svg_element {
+             self.with_replaced_content_clip(
+                 scene,
+                 container_size,

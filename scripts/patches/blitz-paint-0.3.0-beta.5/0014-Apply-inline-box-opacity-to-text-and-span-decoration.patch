@@ -1,0 +1,210 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 28 Sep 2026 19:24:35 +0100
+Subject: [PATCH] Apply inline-box opacity to text and span decorations
+
+A non-atomic inline box paints no layer of its own, so its opacity
+never took effect: `<span style="opacity:0">` painted fully opaque. The
+glyphs, text decorations, text shadows and span backgrounds and borders
+now take the product of the opacities of the inline ancestors below the
+inline root, whose own opacity is already a layer.
+
+Text that fades by animating per-character span opacity showed every
+state on top of each other without this.
+---
+ src/render.rs               |  2 ++
+ src/text.rs                 | 25 +++++++++++++++++++++++--
+ src/text_box_decorations.rs | 18 +++++++++++++-----
+ src/text_decorations.rs     | 33 +++++++++++++++++++++++++++++++++
+ 4 files changed, 71 insertions(+), 7 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 4396d61..9b64581 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1188,6 +1188,7 @@ impl ElementCx<'_, '_> {
+                 &text_layout.layout,
+                 self.context.dom,
+                 transform,
++                self.node.id,
+             );
+
+             // Render text selection highlight (if any) using cached selection ranges
+@@ -1222,6 +1223,7 @@ impl ElementCx<'_, '_> {
+                 &text_layout.layout,
+                 self.context.dom,
+                 transform,
++                self.node.id,
+             );
+         }
+     }
+diff --git a/src/text.rs b/src/text.rs
+index 7dc27fa..22812fc 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -37,6 +37,21 @@ pub(crate) struct TextPaintOptions {
+     pub brush_override: Option<Color>,
+ }
+
++/// The combined `opacity` of `node_id` and its inline ancestors, excluding
++/// `inline_root_id` (see `DecorationStackEntry::opacity`).
++pub(crate) fn inline_opacity(doc: &BaseDocument, node_id: NodeId, inline_root_id: NodeId) -> f32 {
++    let mut opacity = 1.0;
++    let mut walk_id = Some(node_id);
++    while let Some(id) = walk_id.filter(|&id| id != inline_root_id) {
++        let Some(node) = doc.get_node(id) else { break };
++        if let Some(styles) = node.primary_styles() {
++            opacity *= styles.get_effects().opacity;
++        }
++        walk_id = node.parent;
++    }
++    opacity
++}
++
+ pub(crate) fn stroke_text<'a>(
+     scene: &mut impl PaintScene,
+     lines: impl Iterator<Item = Line<'a, TextBrush>>,
+@@ -117,7 +132,13 @@ pub(crate) fn stroke_text<'a>(
+                 .count();
+             stack.truncate(shared);
+             for &node_id in &path_scratch[shared..] {
+-                let entry = resolve_decoration_entry(doc, node_id, stack.last(), scale);
++                let mut entry = resolve_decoration_entry(doc, node_id, stack.last(), scale);
++                entry.opacity = match stack.last() {
++                    _ if node_id == inline_root_id => 1.0,
++                    Some(parent) => parent.opacity * entry.opacity,
++                    None => entry.opacity,
++                };
++                entry.apply_opacity();
+                 stack.push(entry);
+             }
+
+@@ -127,7 +148,7 @@ pub(crate) fn stroke_text<'a>(
+             // they are dropped when the brush is overridden.
+             let (fill_color, shadows) = stack
+                 .last()
+-                .map(|e| (e.fill_color, e.text_shadows.clone()))
++                .map(|e| (e.fill_color.multiply_alpha(e.opacity), e.text_shadows.clone()))
+                 .unwrap_or((Color::BLACK, None));
+             let fill_color = brush_override.unwrap_or(fill_color).multiply_alpha(alpha);
+             let shadows = shadows.filter(|_| brush_override.is_none());
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+index b623cf4..a14b244 100644
+--- a/src/text_box_decorations.rs
++++ b/src/text_box_decorations.rs
+@@ -49,6 +49,7 @@ pub(crate) fn paint_span_fragment_backgrounds(
+     layout: &Layout<TextBrush>,
+     doc: &BaseDocument,
+     transform: Affine,
++    inline_root_id: blitz_dom::NodeId,
+ ) {
+     let fragments = layout.span_fragments();
+     if fragments.is_empty() {
+@@ -98,7 +99,8 @@ pub(crate) fn paint_span_fragment_backgrounds(
+             .get_background()
+             .background_color
+             .resolve_to_absolute(&current_color)
+-            .as_srgb_color();
++            .as_srgb_color()
++            .multiply_alpha(crate::text::inline_opacity(doc, node.id, inline_root_id));
+         if bg.components[3] == 0.0 {
+             continue;
+         }
+@@ -137,6 +139,7 @@ pub(crate) fn paint_span_fragment_borders(
+     layout: &Layout<TextBrush>,
+     doc: &BaseDocument,
+     transform: Affine,
++    inline_root_id: blitz_dom::NodeId,
+ ) {
+     let fragments = layout.span_fragments();
+     if fragments.is_empty() {
+@@ -174,23 +177,28 @@ pub(crate) fn paint_span_fragment_borders(
+             None => continue,
+         };
+         let current_color = primary.clone_color();
++        let opacity = crate::text::inline_opacity(doc, node.id, inline_root_id);
+         let border = primary.get_border();
+         let top_color = border
+             .border_top_color
+             .resolve_to_absolute(&current_color)
+-            .as_srgb_color();
++            .as_srgb_color()
++            .multiply_alpha(opacity);
+         let right_color = border
+             .border_right_color
+             .resolve_to_absolute(&current_color)
+-            .as_srgb_color();
++            .as_srgb_color()
++            .multiply_alpha(opacity);
+         let bottom_color = border
+             .border_bottom_color
+             .resolve_to_absolute(&current_color)
+-            .as_srgb_color();
++            .as_srgb_color()
++            .multiply_alpha(opacity);
+         let left_color = border
+             .border_left_color
+             .resolve_to_absolute(&current_color)
+-            .as_srgb_color();
++            .as_srgb_color()
++            .multiply_alpha(opacity);
+
+         let outer = fragment_rect(fragment, line);
+
+diff --git a/src/text_decorations.rs b/src/text_decorations.rs
+index b9179e0..6e0dd55 100644
+--- a/src/text_decorations.rs
++++ b/src/text_decorations.rs
+@@ -120,6 +120,37 @@ pub(crate) struct DecorationStackEntry {
+     /// Shared (via `Arc`) with the per-run records and decorating boxes so that
+     /// consecutive runs with the same shadow can be batched by pointer equality.
+     pub(crate) text_shadows: Option<Arc<[ResolvedTextShadow]>>,
++    /// `opacity` of this node times every inline ancestor's, up to
++    /// but excluding the inline root. The root's own opacity is a paint
++    /// layer in render.rs, but a non-atomic inline box paints no layer of its
++    /// own, so its opacity has to reach its glyphs and decorations here.
++    pub(crate) opacity: f32,
++}
++
++impl DecorationStackEntry {
++    /// Fade the decoration and text shadows by [`Self::opacity`]. Without it
++    /// `<span style="opacity:0">` paints fully opaque. Multiplying per run matches
++    /// group opacity everywhere except where glyphs of one span overlap.
++    pub(crate) fn apply_opacity(&mut self) {
++        if self.opacity >= 1.0 {
++            return;
++        }
++        let opacity = self.opacity;
++        if let Some(deco) = self.decoration.as_mut() {
++            deco.color = deco.color.multiply_alpha(opacity);
++        }
++        if let Some(shadows) = &self.text_shadows {
++            self.text_shadows = Some(
++                shadows
++                    .iter()
++                    .map(|shadow| ResolvedTextShadow {
++                        color: shadow.color.multiply_alpha(opacity),
++                        ..*shadow
++                    })
++                    .collect(),
++            );
++        }
++    }
+ }
+
+ /// One `text-shadow` layer with all lengths resolved to device pixels.
+@@ -150,6 +181,7 @@ pub(crate) fn resolve_decoration_entry(
+             fill_color: Color::BLACK,
+             decoration: None,
+             text_shadows: None,
++            opacity: 1.0,
+         };
+     };
+
+@@ -228,5 +260,6 @@ pub(crate) fn resolve_decoration_entry(
+         fill_color,
+         decoration,
+         text_shadows,
++        opacity: styles.get_effects().opacity,
+     }
+ }

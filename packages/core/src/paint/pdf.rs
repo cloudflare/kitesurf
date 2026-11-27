@@ -146,9 +146,9 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
             continue;
         };
         let box_style = styles.get_box();
-        let before = box_style.clone_break_before();
-        let after = box_style.clone_break_after();
-        let inside = box_style.clone_break_inside();
+        let before = *box_style.get_break_before();
+        let after = *box_style.get_break_after();
+        let inside = *box_style.get_break_inside();
         if before == BreakBetween::Auto
             && after == BreakBetween::Auto
             && inside == BreakWithin::Auto

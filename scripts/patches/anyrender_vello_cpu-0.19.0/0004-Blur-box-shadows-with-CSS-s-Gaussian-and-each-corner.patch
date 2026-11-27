@@ -1,0 +1,122 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 00:08:01 +0000
+Subject: [PATCH] Blur box shadows with CSS's Gaussian and each corner's radius
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+vello_cpu's blurred rounded rect shades erf(d / std_dev), but a Gaussian of
+deviation σ is erf(d / (σ√2)). draw_box_shadow takes the CSS deviation (half the
+blur radius), so every blurred shadow was √2 too sharp. Scale it before calling
+vello_cpu.
+
+The analytic blur also takes one circular radius, and this backend averaged all
+eight. An outset shadow whose corners differ now blurs each corner's quadrant with
+that corner's own radius, clipped to the quadrant. The quadrants meet on straight
+edges, where every radius blurs alike. Inset shadows still use the average.
+
+Both used to live in blitz-paint's box-shadow patch, which beta.5 dropped once
+upstream moved shadows behind PaintScene::draw_box_shadow.
+
+Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
+
+beep-boop-🤖
+---
+ src/scene.rs | 80 ++++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 72 insertions(+), 8 deletions(-)
+
+diff --git a/src/scene.rs b/src/scene.rs
+index d59d6b5..cac643c 100644
+--- a/src/scene.rs
++++ b/src/scene.rs
+@@ -543,17 +543,81 @@ impl PaintScene for VelloCpuScenePainter {
+             }
+             return;
+         }
+-        // TODO: draw shadows with matching individual radii instead of averaging them
+-        self.render_ctx.fill_blurred_rounded_rect_in(
+-            &geometry.area,
+-            &geometry.shadow.rect,
+-            geometry.shadow.average_radius() as f32,
+-            geometry.std_dev as f32,
+-            geometry.is_inset(),
+-        );
++        // vello_cpu shades erf(d / std_dev), and a Gaussian of deviation σ is erf(d / (σ√2)).
++        let std_dev = geometry.std_dev * std::f64::consts::SQRT_2;
++        let shadow = &geometry.shadow;
++        let radii = &shadow.radii;
++        let uniform = [radii.top_right, radii.bottom_right, radii.bottom_left]
++            .iter()
++            .all(|r| *r == radii.top_left)
++            && radii.top_left.x == radii.top_left.y;
++        if geometry.is_inset() || uniform {
++            self.render_ctx.fill_blurred_rounded_rect_in(
++                &geometry.area,
++                &shadow.rect,
++                shadow.average_radius() as f32,
++                std_dev as f32,
++                geometry.is_inset(),
++            );
++            return;
++        }
++        for (quadrant, local, radius) in blurred_shadow_quadrants(&shadow.rect, radii, std_dev) {
++            self.render_ctx.push_clip_rect(&quadrant);
++            self.render_ctx.fill_blurred_rounded_rect_in(
++                &geometry.area,
++                &local,
++                radius as f32,
++                std_dev as f32,
++                false,
++            );
++            self.render_ctx.pop_clip();
++        }
+     }
+ }
+
++/// The analytic blur takes one circular radius, so an outset shadow whose corners differ blurs
++/// each corner's quadrant with that corner's own radius. The quadrants meet on straight edges,
++/// where every radius blurs alike. Each yields its clip, the part of the shadow rect that can
++/// reach it (vello shades a blur's whole rect before clipping), and the corner's radius.
++fn blurred_shadow_quadrants(
++    rect: &Rect,
++    r: &anyrender::NonUniformRoundedRectRadii,
++    std_dev: f64,
++) -> [(Rect, Rect, f64); 4] {
++    let straight = |a0: f64, a1: f64, b0: f64, b1: f64| {
++        let (lo, hi) = (a0.max(b0), a1.min(b1));
++        if lo <= hi {
++            (lo + hi) / 2.0
++        } else {
++            (a0 + a1 + b0 + b1) / 4.0
++        }
++    };
++    let split_x = straight(
++        rect.x0 + r.top_left.x,
++        rect.x1 - r.top_right.x,
++        rect.x0 + r.bottom_left.x,
++        rect.x1 - r.bottom_right.x,
++    );
++    let split_y = straight(
++        rect.y0 + r.top_left.y,
++        rect.y1 - r.bottom_left.y,
++        rect.y0 + r.top_right.y,
++        rect.y1 - r.bottom_right.y,
++    );
++    let bounds = rect.inflate(4.0 * std_dev + 1.0, 4.0 * std_dev + 1.0);
++    let quadrant = |clip: Rect, corner: kurbo::Vec2| {
++        let radius = (corner.x + corner.y) / 2.0;
++        let reach = radius + 3.0 * std_dev + 1.0;
++        (clip, rect.intersect(clip.inflate(reach, reach)), radius)
++    };
++    [
++        quadrant(Rect::new(bounds.x0, bounds.y0, split_x, split_y), r.top_left),
++        quadrant(Rect::new(split_x, bounds.y0, bounds.x1, split_y), r.top_right),
++        quadrant(Rect::new(split_x, split_y, bounds.x1, bounds.y1), r.bottom_right),
++        quadrant(Rect::new(bounds.x0, split_y, split_x, bounds.y1), r.bottom_left),
++    ]
++}
++
+ #[cfg(test)]
+ mod clip_rule_tests {
+     use anyrender::{AntiAliasing, PaintScene, recording::Scene, render_to_buffer};

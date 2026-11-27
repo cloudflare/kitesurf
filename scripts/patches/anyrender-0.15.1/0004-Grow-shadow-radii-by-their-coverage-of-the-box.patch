@@ -1,0 +1,99 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 05:39:39 +0000
+Subject: [PATCH] Grow shadow radii by their coverage of the box
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+NonUniformRoundedRect::spread keeps a radius smaller than the spread small with
+r + spread * (1 + (r / spread - 1)^3). css-backgrounds-4 multiplies the cubic by
+(1 - coverage^3), where coverage is min(2 rx / width, 2 ry / height), and grows
+a corner that covers its box by the whole spread. Without the term a 10px circle
+with a 70px spread cast a nearly square shadow (WPT
+css-backgrounds/box-shadow-radius-generated variants). The box-shadow patch that
+blitz-paint beta.5 dropped had the same term.
+
+beep-boop-🤖
+---
+ src/shapes/non_uniform_rounded_rect.rs | 38 +++++++++++++++++++++-----
+ 1 file changed, 31 insertions(+), 7 deletions(-)
+
+diff --git a/src/shapes/non_uniform_rounded_rect.rs b/src/shapes/non_uniform_rounded_rect.rs
+index 1e2c728..30d5d1a 100644
+--- a/src/shapes/non_uniform_rounded_rect.rs
++++ b/src/shapes/non_uniform_rounded_rect.rs
+@@ -62,9 +62,12 @@ impl NonUniformRoundedRect {
+     ///
+     /// Sharp corners stay sharp. Shrinking subtracts the spread from each radius (flooring at
+     /// zero). Growing adds the spread to each radius, except that a radius `r` smaller than the
+-    /// spread grows by `spread * (1 + (r / spread - 1)^3)`, so that small radii stay small. The
++    /// spread grows by `spread * (1 - (1 - r / spread)^3 * (1 - coverage^3))`, so that small radii
++    /// stay small. `coverage` is how much of its box the corner spans, `min(2 rx / width,
++    /// 2 ry / height)`, and above 1 the radius grows by the full spread (css-backgrounds-4). The
+     /// resulting radii are then scaled down with [`Self::scale_overlapping_radii`].
+     pub fn spread(&self, spread: f64) -> Self {
++        let (width, height) = (self.rect.width(), self.rect.height());
+         let Rect { x0, y0, x1, y1 } = self.rect;
+         let grow = |min: f64, max: f64| {
+             if max - min + 2.0 * spread >= 0.0 {
+@@ -76,11 +79,11 @@ impl NonUniformRoundedRect {
+         };
+         let (x0, x1) = grow(x0, x1);
+         let (y0, y1) = grow(y0, y1);
+-        let adjust = |r: f64| {
++        let adjust = |r: f64, coverage: f64| {
+             if spread < 0.0 {
+                 (r + spread).max(0.0)
+-            } else if r < spread {
+-                r + spread * (1.0 + (r / spread - 1.0).powi(3))
++            } else if r < spread && coverage <= 1.0 {
++                r + spread * (1.0 - (1.0 - r / spread).powi(3) * (1.0 - coverage.powi(3)))
+             } else {
+                 r + spread
+             }
+@@ -89,7 +92,9 @@ impl NonUniformRoundedRect {
+             if is_sharp(r) {
+                 Vec2::ZERO
+             } else {
+-                Vec2::new(adjust(r.x), adjust(r.y))
++                let coverage = (2.0 * r.x / width).min(2.0 * r.y / height);
++                let coverage = if coverage.is_finite() { coverage } else { 0.0 };
++                Vec2::new(adjust(r.x, coverage), adjust(r.y, coverage))
+             }
+         });
+         Self {
+@@ -407,12 +412,31 @@ mod tests {
+         let spread = shape.spread(4.0);
+         assert_eq!(spread.rect, RECT.inflate(4.0, 4.0));
+         assert_eq!(spread.radii.top_left, Vec2::new(14.0, 14.0));
+-        // 2 + 4 * (1 + (2 / 4 - 1)^3)
+-        assert_eq!(spread.radii.top_right, Vec2::new(5.5, 5.5));
++        // 2 + 4 * (1 - (1 - 2 / 4)^3 * (1 - 0.04^3)), with 0.04 = 2 * 2 / 100
++        let top_right = spread.radii.top_right;
++        assert!((top_right.x - 5.5).abs() < 1e-3 && top_right.x == top_right.y);
+         assert_eq!(spread.radii.bottom_right, Vec2::ZERO);
+         assert_eq!(spread.radii.bottom_left, Vec2::ZERO);
+     }
+
++    #[test]
++    fn spread_keeps_a_corner_that_covers_its_box_round() {
++        let circle = Rect::new(0.0, 0.0, 10.0, 10.0);
++        let r = Vec2::new(5.0, 5.0);
++        let shape = NonUniformRoundedRect::new(
++            circle,
++            NonUniformRoundedRectRadii {
++                top_left: r,
++                top_right: r,
++                bottom_right: r,
++                bottom_left: r,
++            },
++        );
++        // Coverage 1 grows the radius by the whole spread, so the shadow stays a circle.
++        let spread = shape.spread(70.0);
++        assert_eq!(spread.radii.top_left, Vec2::new(75.0, 75.0));
++    }
++
+     #[test]
+     fn negative_spread_shrinks_radii() {
+         let shape = NonUniformRoundedRect::new(

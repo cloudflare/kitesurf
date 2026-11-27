@@ -429,7 +429,7 @@ fn annotated_page() -> String {
         .replace(
             "</style>",
             ".rel { position: relative; }\n\
-             .anno { position: absolute; display: block; right: 0.3em; }\n\
+             .anno { position: absolute; display: block; right: 0.3em; top: 0.2em; }\n\
              .self { position: absolute; top: 0; left: -2.5em; }\n\
              .pin { position: absolute; right: 4px; top: auto; width: 3px; height: 3px; }\n</style>",
         )
@@ -440,7 +440,7 @@ fn annotated_page() -> String {
 }
 
 /// Roots holding absolutely positioned boxes whose static position needs
-/// only their line (block-level, or with a horizontal inset) are evicted and
+/// only their line (inline-level, or with a block-axis inset) are evicted and
 /// laid out from their summaries, placing the boxes as a live layout does.
 #[test]
 fn width_changes_place_absolute_boxes_of_evicted_roots() {
