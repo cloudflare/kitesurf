@@ -159,9 +159,11 @@ Public Suffix List
 WPT-derived corner-shape contours
   - scripts/patches/blitz-paint-0.3.0-beta.5/0013-Paint-corner-shape-on-backgrounds-and-clips.patch
     adds src/kurbo_css/corner_shape.rs, a Rust adaptation of WPT's
-    css/css-borders/corner-shape/resources/render-corner-shape.js.
+    css/css-borders/corner-shape/resources/render-corner-shape.js, and
+  - scripts/patches/blitz-paint-0.3.0-beta.5/0033-Follow-WPT-ed5a113c-s-corner-shape-reference-contour.patch
+    ports that file's later revision.
     Copyright web-platform-tests contributors; 3-Clause BSD.
-    Source: https://github.com/web-platform-tests/wpt/blob/6efb1b12b95725c026cb1f5a451138345cfca937/css/css-borders/corner-shape/resources/render-corner-shape.js
+    Source: https://github.com/web-platform-tests/wpt/blob/ed5a113c628a2fe255aad1861b2b6e6c230b1817/css/css-borders/corner-shape/resources/render-corner-shape.js
     See licenses/BSD-3-Clause-WPT.txt. The adaptation is compiled into
     Kitesurf's painting Wasm; retain this notice with that distribution.
 

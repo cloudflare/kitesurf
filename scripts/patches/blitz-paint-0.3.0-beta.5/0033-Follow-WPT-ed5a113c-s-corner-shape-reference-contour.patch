@@ -1,0 +1,493 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 16:07:50 +0000
+Subject: [PATCH] Follow WPT ed5a113c's corner-shape reference contours
+
+WPT rewrote css-borders/corner-shape/resources/render-corner-shape.js
+after 6efb1b12, and the reftests compare against that file. The old port
+moved inner edges along one normal derived from the half-corner point and
+pinned the ends with a control-point line, so concave corners (scoop,
+notch, superellipse(-2), superellipse(-7)) with thick borders painted a
+different padding edge from the new reference.
+
+The contour now follows the new corner_clip_out_path: per-end normals
+skewed by the difference between the two insets, miters for negative
+insets, a self-intersection cut for large outsets of concave corners, a
+quarter ellipse between the tangents for -1 < k < 0, and the
+css-backgrounds-3 spread adjustment for radii smaller than an outset.
+Points past the moved rect are now clipped where each segment crosses an
+edge instead of only clamped, because the new end points sit outside the
+rect, and clamping a slanted segment moved its crossing.
+
+Blitz upstream does not paint corner-shape at all; this only affects the
+Kitesurf port.
+---
+ src/kurbo_css/corner_shape.rs | 345 +++++++++++++++++++++++++---------
+ 1 file changed, 257 insertions(+), 88 deletions(-)
+
+diff --git a/src/kurbo_css/corner_shape.rs b/src/kurbo_css/corner_shape.rs
+index 4a5046c..4e55a3c 100644
+--- a/src/kurbo_css/corner_shape.rs
++++ b/src/kurbo_css/corner_shape.rs
+@@ -2,7 +2,7 @@
+ //! inner edges and shadow spreads move along the same approximate normal the reference uses.
+
+ use kurbo::{BezPath, Insets, Point, Rect, Vec2};
+-use std::f64::consts::FRAC_PI_2;
++use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, SQRT_2};
+
+ use super::NonUniformRoundedRectRadii;
+
+@@ -50,59 +50,52 @@ pub fn contour(
+     if target.x0 > target.x1 || target.y0 > target.y1 {
+         return BezPath::new();
+     }
++    let coverage = |radius: Vec2| 2.0 * (radius.x / rect.width()).min(radius.y / rect.height());
+     let corners = [
+         Corner {
+-            outer: Point::new(rect.x0, rect.y0),
+             towards_start: Vec2::new(0.0, radii.top_left.y),
+             towards_end: Vec2::new(radii.top_left.x, 0.0),
+             k: shapes.top_left,
+             start_inset: insets.x0,
+             end_inset: insets.y0,
+             sharp: Point::new(target.x0, target.y0),
++            coverage: coverage(radii.top_left),
+         },
+         Corner {
+-            outer: Point::new(rect.x1, rect.y0),
+             towards_start: Vec2::new(-radii.top_right.x, 0.0),
+             towards_end: Vec2::new(0.0, radii.top_right.y),
+             k: shapes.top_right,
+             start_inset: insets.y0,
+             end_inset: insets.x1,
+             sharp: Point::new(target.x1, target.y0),
++            coverage: coverage(radii.top_right),
+         },
+         Corner {
+-            outer: Point::new(rect.x1, rect.y1),
+             towards_start: Vec2::new(0.0, -radii.bottom_right.y),
+             towards_end: Vec2::new(-radii.bottom_right.x, 0.0),
+             k: shapes.bottom_right,
+             start_inset: insets.x1,
+             end_inset: insets.y1,
+             sharp: Point::new(target.x1, target.y1),
++            coverage: coverage(radii.bottom_right),
+         },
+         Corner {
+-            outer: Point::new(rect.x0, rect.y1),
+             towards_start: Vec2::new(radii.bottom_left.x, 0.0),
+             towards_end: Vec2::new(0.0, -radii.bottom_left.y),
+             k: shapes.bottom_left,
+             start_inset: insets.y1,
+             end_inset: insets.x0,
+             sharp: Point::new(target.x0, target.y1),
++            coverage: coverage(radii.bottom_left),
+         },
+     ];
+
+-    // The reference cuts each corner out of the moved rect with an evenodd clip, so whatever
+-    // a corner's offset points push past the rect's edges is dropped, not painted.
+-    let clamp = |p: Point| {
+-        Point::new(
+-            p.x.clamp(target.x0, target.x1),
+-            p.y.clamp(target.y0, target.y1),
+-        )
+-    };
+     let mut runs: Vec<Vec<Point>> = corners
+         .iter()
+         .map(|corner| {
+             let mut points = Vec::new();
+             corner.push_points(&mut points);
+-            points.into_iter().map(clamp).collect()
++            clip_to(target, &points)
+         })
+         .collect();
+     let along = [
+@@ -134,6 +127,40 @@ pub fn contour(
+     path
+ }
+
++/// The reference cuts each corner out of the moved rect with an evenodd clip, so whatever a
++/// corner's points push past the rect's edges is dropped: each segment is split where it
++/// crosses an edge and the outside points are pulled onto the edge.
++fn clip_to(target: Rect, points: &[Point]) -> Vec<Point> {
++    let clamp = |p: Point| {
++        Point::new(
++            p.x.clamp(target.x0, target.x1),
++            p.y.clamp(target.y0, target.y1),
++        )
++    };
++    let mut clipped = Vec::with_capacity(points.len());
++    for (i, &p) in points.iter().enumerate() {
++        clipped.push(clamp(p));
++        let Some(&q) = points.get(i + 1) else {
++            break;
++        };
++        let d = q - p;
++        let mut crossings: Vec<f64> = [
++            (p.x, d.x, target.x0),
++            (p.x, d.x, target.x1),
++            (p.y, d.y, target.y0),
++            (p.y, d.y, target.y1),
++        ]
++        .into_iter()
++        .filter(|&(_, delta, _)| delta != 0.0)
++        .map(|(from, delta, edge)| (edge - from) / delta)
++        .filter(|t| *t > 0.0 && *t < 1.0)
++        .collect();
++        crossings.sort_by(f64::total_cmp);
++        clipped.extend(crossings.into_iter().map(|t| clamp(p + d * t)));
++    }
++    clipped
++}
++
+ /// Inner edges of big radii can make one corner's curve run past where the next one starts
+ /// on their shared edge; both are cut back to where they cross, as the reference's clips are.
+ fn trim_overlap(first: &mut Vec<Point>, second: &mut Vec<Point>, direction: Vec2) {
+@@ -169,107 +196,171 @@ fn segment_intersection((a0, a1): (Point, Point), (b0, b1): (Point, Point)) -> O
+     ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)).then(|| a0 + a * t)
+ }
+
+-/// One corner of the unmoved rect at `outer`, running clockwise from the edge before it
+-/// (`towards_start`, moved in by `start_inset`) to the edge after it.
++/// One corner of the moved rect at `sharp`, running clockwise from the edge before it (along
++/// `towards_start`, moved in by `start_inset`) to the edge after it.
+ struct Corner {
+-    outer: Point,
+     towards_start: Vec2,
+     towards_end: Vec2,
+     k: f64,
+     start_inset: f64,
+     end_inset: f64,
+     sharp: Point,
++    /// Twice the radii's smaller fraction of the box's size.
++    coverage: f64,
+ }
+
+ impl Corner {
++    /// The reference's `corner_clip_out_path`: the start and end radii are the radii along
++    /// `towards_end` and `towards_start`, each inset measures along the other edge.
+     fn push_points(&self, points: &mut Vec<Point>) {
+-        // A border at least as thick as the radius leaves a square inner corner,
+-        // as it does for a round corner, instead of a curve turned inside out.
+-        if self.k == f64::INFINITY
+-            || self.towards_start.hypot() < 0.1
+-            || self.towards_end.hypot() < 0.1
+-            || self.start_inset >= self.towards_end.hypot()
+-            || self.end_inset >= self.towards_start.hypot()
+-        {
++        let start_radius = self.towards_end.hypot();
++        let end_radius = self.towards_start.hypot();
++        if start_radius == 0.0 || end_radius == 0.0 || self.k == f64::INFINITY {
+             points.push(self.sharp);
+             return;
+         }
+-
+-        let mut curvature = if self.k < -10.0 {
+-            0.01
+-        } else {
+-            2f64.powf(self.k)
+-        };
+-        let inverse = curvature < 1.0;
+-        let near_notch = self.k < -8.0;
+-        if inverse {
+-            curvature = 1.0 / curvature;
++        let v3 = self.towards_start / end_radius;
++        let v2 = self.towards_end / start_radius;
++        let k = self.k;
++
++        // Small radii grow less than an outset shadow's spread (css-backgrounds-3).
++        let coverage = self.coverage;
++        let start_inset = adjusted_inset(coverage, start_radius, self.start_inset);
++        let end_inset = adjusted_inset(coverage, end_radius, self.end_inset);
++
++        let target_outer = self.sharp;
++        let original_outer = target_outer - v3 * end_inset - v2 * start_inset;
++        let original_start = original_outer + v3 * end_radius;
++        let original_end = original_outer + v2 * start_radius;
++
++        let control_x =
++            (normalized_half_corner(k) / (SQRT_2 - 1.0) - FRAC_1_SQRT_2).clamp(0.0, 1.0);
++        let inset_diff = (end_inset - start_inset).clamp(-start_radius, end_radius);
++        if k <= 0.0 && (inset_diff == -start_radius || inset_diff == end_radius) {
++            points.push(self.sharp);
++            return;
+         }
+
+-        let outer = self.outer;
+-        let start = outer + self.towards_start;
+-        let end = outer + self.towards_end;
+-        let center = outer + self.towards_start + self.towards_end;
++        let (mut start_control_x, mut end_control_x) = (control_x, control_x);
++        if inset_diff != 0.0 {
++            let delta = (start_radius.powi(2) + end_radius.powi(2) - inset_diff.powi(2)).sqrt();
++            let normal_x = end_radius * inset_diff + start_radius * delta;
++            let normal_y = -start_radius * inset_diff + end_radius * delta;
++            let bevel_x =
++                start_radius * normal_y / (start_radius * normal_y + end_radius * normal_x);
++            start_control_x = if k < 0.0 {
++                bevel_x * (2.0 * control_x)
++            } else {
++                1.0 - (1.0 - bevel_x) * (2.0 * (1.0 - control_x))
++            };
++            end_control_x = 2.0 * control_x - start_control_x;
++        }
+
+-        let extend_start = normalized(center - start) * self.start_inset;
+-        let extend_end = normalized(center - end) * self.end_inset;
+-        let clip_start = start + extend_start;
+-        let clip_outer = outer + extend_start + extend_end;
+-        let clip_end = end + extend_end;
++        let unmapped_start = normalized(Vec2::new(
++            (1.0 - start_control_x) * start_radius,
++            start_control_x * end_radius,
++        ));
++        let unmapped_end = normalized(Vec2::new(
++            end_control_x * start_radius,
++            (1.0 - end_control_x) * end_radius,
++        ));
++        let start_normal = v3 * unmapped_start.x + v2 * unmapped_start.y;
++        let end_normal = v3 * unmapped_end.x + v2 * unmapped_end.y;
++
++        let mut adjusted_start = original_start + start_normal * start_inset;
++        let mut adjusted_end = original_end + end_normal * end_inset;
++        let start_tangent = -perpendicular(start_normal);
++        let end_tangent = perpendicular(end_normal);
++
++        let (mut miter_start, mut miter_end) = (adjusted_start, adjusted_end);
++        if start_inset < 0.0 {
++            miter_start = intersection(
++                (adjusted_start, adjusted_start + start_tangent),
++                (target_outer + v3, target_outer),
++            )
++            .unwrap_or(adjusted_start);
++            if k >= 0.0 {
++                adjusted_start = miter_start;
++            }
++        }
++        if end_inset < 0.0 {
++            miter_end = intersection(
++                (adjusted_end, adjusted_end + end_tangent),
++                (target_outer + v2, target_outer),
++            )
++            .unwrap_or(adjusted_end);
++            if k >= 0.0 {
++                adjusted_end = miter_end;
++            }
++        }
+
+-        let convex_half_corner = if near_notch {
+-            0.75
+-        } else {
+-            0.5f64.powf(1.0 / curvature.min(2.0))
+-        };
+-        let half_corner = if inverse {
+-            1.0 - convex_half_corner
+-        } else {
+-            convex_half_corner
+-        };
+-        let to_control = Vec2::new(2.0 * half_corner - 0.5, 1.5 - 2.0 * half_corner);
+-        let stroke = perpendicular(normalized(to_control));
+-
+-        let offsets = [
+-            normalized(outer - start) * (self.start_inset * stroke.x),
+-            normalized(end - outer) * (self.start_inset * stroke.y),
+-            normalized(center - end) * (self.end_inset * stroke.y),
+-            normalized(start - center) * (self.end_inset * stroke.x),
+-        ];
+-        let adjusted_start = start + offsets[0] + offsets[1];
+-        let adjusted_outer = outer + offsets[1] + offsets[2];
+-        let adjusted_end = end + offsets[2] + offsets[3];
+-        let adjusted_center = center + offsets[3] + offsets[0];
+-        let curve_center = if inverse {
+-            adjusted_outer
+-        } else {
+-            adjusted_center
+-        };
+-        let map = |x: f64, y: f64| {
+-            curve_center + (adjusted_end - curve_center) * x + (adjusted_start - curve_center) * y
++        let height = (adjusted_end - adjusted_start).dot(v2);
++        let adjusted_outer = adjusted_end - v2 * height;
++        let adjusted_center = adjusted_start + v2 * height;
++        let map = |center: Point, x: f64, y: f64| {
++            center + (adjusted_end - center) * x + (adjusted_start - center) * y
+         };
+
+-        let control = map(to_control.y, 1.0 - to_control.x);
+-        let aligned_start = intersection((adjusted_start, control), (clip_start, clip_outer))
+-            .unwrap_or(adjusted_start);
+-        let aligned_end =
+-            intersection((adjusted_end, control), (clip_outer, clip_end)).unwrap_or(adjusted_end);
+-
+-        points.push(aligned_start);
+-        if near_notch {
++        let self_intersection = (k < 0.0
++            && start_inset < 0.0
++            && end_inset < 0.0
++            && (-end_inset >= start_radius || -start_inset >= end_radius))
++            .then(|| {
++                segment_line_intersection((miter_start, adjusted_start), (miter_end, adjusted_end))
++            })
++            .flatten();
++
++        points.push(miter_start);
++        if let Some(p) = self_intersection {
++            points.push(p);
++        } else if k == f64::NEG_INFINITY {
+             points.push(adjusted_center);
+-        } else {
+-            // x = sin²θ^(1/c), y = cos²θ^(1/c) walks |x|^c + |y|^c = 1 from the start (0, 1)
++        } else if k > 0.0 || k <= -1.0 {
++            // x = sin²θ^(1/n), y = cos²θ^(1/n) walks |x|^n + |y|^n = 1 from the start (0, 1)
+             // to the end (1, 0).
+-            let exponent = 2.0 / curvature;
++            let exponent = 2.0 / 2f64.powf(k.abs());
++            let center = if k < 0.0 {
++                adjusted_outer
++            } else {
++                adjusted_center
++            };
+             let at = |theta: f64| {
+                 let (sin, cos) = theta.sin_cos();
+-                map(sin.abs().powf(exponent), cos.abs().powf(exponent))
++                map(center, sin.abs().powf(exponent), cos.abs().powf(exponent))
++            };
++            flatten(&at, 0.0, FRAC_PI_2, points);
++        } else if k < 0.0 {
++            // Shallow concave corners are a quarter ellipse inside the tangents' parallelogram.
++            let center = intersection(
++                (adjusted_start, adjusted_start + start_tangent),
++                (adjusted_end, adjusted_end + end_tangent),
++            )
++            .unwrap_or(adjusted_start);
++            let at = |theta: f64| {
++                let (sin, cos) = theta.sin_cos();
++                map(center, 1.0 - cos.abs(), 1.0 - sin.abs())
+             };
+             flatten(&at, 0.0, FRAC_PI_2, points);
+         }
+-        points.push(aligned_end);
++        points.push(miter_end);
++    }
++}
++
++/// How far a corner's contour moves for an inset along one radius: the inset itself, except
++/// that an outset smaller than the radius grows it less, by the shadow spread's formula.
++fn adjusted_inset(coverage: f64, radius: f64, inset: f64) -> f64 {
++    let outset = -inset;
++    if radius > outset || coverage > 1.0 {
++        return inset;
+     }
++    let ratio = radius / outset;
++    -outset * (1.0 - (1.0 - ratio).powi(3) * (1.0 - coverage.powi(3)))
++}
++
++/// The x (or y) coordinate of the half point along a unit `superellipse(k)`.
++fn normalized_half_corner(k: f64) -> f64 {
++    let convex = 0.5f64.powf(1.0 / 2f64.powf(k.abs()));
++    if k < 0.0 { 1.0 - convex } else { convex }
+ }
+
+ fn flatten(curve: &impl Fn(f64) -> Point, from: f64, to: f64, points: &mut Vec<Point>) {
+@@ -303,6 +394,22 @@ fn flatten(curve: &impl Fn(f64) -> Point, from: f64, to: f64, points: &mut Vec<P
+     }
+ }
+
++/// Where the segment `a` crosses the line through `b`, or else the line through `a` crosses
++/// the segment `b`.
++fn segment_line_intersection((a0, a1): (Point, Point), (b0, b1): (Point, Point)) -> Option<Point> {
++    let (a, b) = (a1 - a0, b1 - b0);
++    let denom = a.cross(b);
++    if denom.abs() < 1e-6 {
++        return None;
++    }
++    let a_scale = (b0 - a0).cross(b) / denom;
++    if (0.0..=1.0).contains(&a_scale) {
++        return Some(a0 + a * a_scale);
++    }
++    let b_scale = (b0 - a0).cross(a) / denom;
++    (0.0..=1.0).contains(&b_scale).then(|| b0 + b * b_scale)
++}
++
+ fn normalized(v: Vec2) -> Vec2 {
+     let length = v.hypot();
+     if length == 0.0 { v } else { v / length }
+@@ -326,7 +433,7 @@ fn intersection((a0, a1): (Point, Point), (b0, b1): (Point, Point)) -> Option<Po
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use kurbo::Shape;
++    use kurbo::{ParamCurveNearest, Shape};
+
+     fn uniform(r: f64) -> NonUniformRoundedRectRadii {
+         let v = Vec2::new(r, r);
+@@ -409,6 +516,68 @@ mod tests {
+         assert!((inner.area().abs() - 2.0 * half_diagonal * half_diagonal).abs() < 1e-6);
+     }
+
++    /// Points of WPT ed5a113c's `corner_clip_out_path` for a top-left corner of a 200x100 box:
++    /// its first point, a point on its curve and its last point.
++    #[test]
++    fn corners_follow_the_reference_path() {
++        let cases = [
++            // superellipse(-2), 40px radii, 30px left and 10px top border.
++            (
++                (40.0, 40.0, -2.0, 30.0, 10.0),
++                [
++                    (0.0, 70.0),
++                    (38.31521314808518, 62.97766446960517),
++                    (50.0, 0.0),
++                ],
++            ),
++            // superellipse(-0.5), 40px radii, 15px spread.
++            (
++                (40.0, 40.0, -0.5, -15.0, -15.0),
++                [
++                    (-15.0, 28.79472070570987),
++                    (14.218761586851244, 13.865428329015149),
++                    (28.79472070570987, -15.0),
++                ],
++            ),
++            // superellipse(-0.5), 10px by 30px radii grown by less than the 15px spread.
++            (
++                (10.0, 30.0, -0.5, -15.0, -15.0),
++                [
++                    (-15.0, 23.671504964983324),
++                    (-7.712252458713875, 12.497225212959547),
++                    (-4.200090270196445, -15.0),
++                ],
++            ),
++        ];
++        for ((rx, ry, k, left, top), [first, on_curve, last]) in cases {
++            let corner = Corner {
++                towards_start: Vec2::new(0.0, ry),
++                towards_end: Vec2::new(rx, 0.0),
++                k,
++                start_inset: left,
++                end_inset: top,
++                sharp: Point::new(left, top),
++                coverage: 2.0 * (rx / 200.0f64).min(ry / 100.0),
++            };
++            let mut points = Vec::new();
++            corner.push_points(&mut points);
++            let close = |a: Point, b: (f64, f64)| a.distance(Point::new(b.0, b.1)) < 1e-9;
++            assert!(close(points[0], first), "k={k}: {:?}", points[0]);
++            assert!(close(*points.last().unwrap(), last), "k={k}: {points:?}");
++            let target = Point::new(on_curve.0, on_curve.1);
++            let distance = points
++                .windows(2)
++                .map(|w| {
++                    kurbo::Line::new(w[0], w[1])
++                        .nearest(target, 1e-9)
++                        .distance_sq
++                        .sqrt()
++                })
++                .fold(f64::INFINITY, f64::min);
++            assert!(distance < TOLERANCE, "k={k}: {distance}");
++        }
++    }
++
+     #[test]
+     fn contour_stays_inside_its_moved_rect() {
+         let rect = Rect::new(0.0, 0.0, 200.0, 100.0);
