@@ -5,17 +5,401 @@ Subject: [PATCH] Record per-item inline margin offsets and fix scrolled
  clip-path hit testing
 
 ---
- src/layout/inline.rs | 285 ++++++++++++++++++++++++++-----------------
- src/node/node.rs     | 195 ++++++++++++++++++++---------
- src/node/text.rs     |  22 ++--
- src/resolve.rs       |  11 +-
- 4 files changed, 331 insertions(+), 182 deletions(-)
+ src/layout/construct.rs |  97 +++++++++++++++++-
+ src/layout/evict.rs     |  24 +++--
+ src/layout/inline.rs    | 214 ++++++++++++++--------------------------
+ src/node/mod.rs         |   4 +-
+ src/node/node.rs        | 171 +++++++++++++-------------------
+ src/node/text.rs        |  48 +++++++--
+ src/resolve.rs          |  21 ----
+ 7 files changed, 298 insertions(+), 281 deletions(-)
 
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 5b92f02..f9d6676 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -12,7 +12,8 @@ use style::{
+     data::ElementData as StyloElementData,
+     shared_lock::StylesheetGuards,
+     values::{
+-        computed::{Content, ContentItem, Display, Float},
++        computed::{CSSPixelLength, Content, ContentItem, Display, Float},
++        generics::length::GenericMargin,
+         specified::box_::{DisplayInside, DisplayOutside},
+     },
+ };
+@@ -24,8 +25,9 @@ use crate::{
+         CONSTRUCT_BOX, CONSTRUCT_DESCENDENT, CONSTRUCT_FC, sort_layout_children_by_order,
+     },
+     node::{
+-        ListItemLayout, ListItemLayoutPosition, Marker, NodeFlags, NodeKind, SpecialElementData,
+-        TextBrush, TextInputData, TextLayout,
++        InlineMarginSide, InlineMarginSpacer, ListItemLayout, ListItemLayoutPosition,
++        MARGIN_SPACER_ID_BASE, Marker, NodeFlags, NodeKind, SpecialElementData, TextBrush,
++        TextInputData, TextLayout,
+     },
+     qual_name, stylo_to_parley,
+     traversal::{iter_flat_children, iter_flat_children_and_pseudos},
+@@ -1827,6 +1829,67 @@ std::thread_local! {
+         const { core::cell::RefCell::new(Vec::new()) };
+ }
+
++/// The horizontal-margin spacers pushed while building one inline root.
++struct MarginSpacers {
++    next_id: u64,
++    spacers: Vec<InlineMarginSpacer>,
++}
++
++impl MarginSpacers {
++    fn new() -> Self {
++        Self {
++            next_id: MARGIN_SPACER_ID_BASE,
++            spacers: Vec::new(),
++        }
++    }
++
++    /// Push a zero-height inline box carrying one horizontal margin, outside
++    /// the element's style span so the margin stays outside its background and
++    /// border box. Parley sizes the box during inline layout.
++    fn push(
++        &mut self,
++        builder: &mut TreeBuilder<TextBrush>,
++        node_id: NodeId,
++        side: InlineMarginSide,
++    ) {
++        let id = self.next_id;
++        self.next_id += 1;
++        builder.push_inline_box(InlineBox {
++            id,
++            kind: InlineBoxKind::InFlow,
++            index: 0,
++            width: 0.0,
++            height: 0.0,
++            baseline: None,
++            vertical_align: Default::default(),
++        });
++        self.spacers.push(InlineMarginSpacer { id, node_id, side });
++    }
++}
++
++/// Whether a non-replaced inline box's margin on `side` can shift its line.
++/// `auto` margins are zero on inline boxes (CSS2 §10.3.1); a percentage is
++/// resolved during inline layout against the root's content width.
++fn inline_margin_needs_spacer(
++    style: Option<&style::servo_arc::Arc<style::properties::ComputedValues>>,
++    side: InlineMarginSide,
++) -> bool {
++    let Some(style) = style else {
++        return false;
++    };
++    let margin = style.clone_margin();
++    let value = match side {
++        InlineMarginSide::Start => &margin.margin_left,
++        InlineMarginSide::End => &margin.margin_right,
++    };
++    match value {
++        GenericMargin::LengthPercentage(lp) => {
++            lp.has_percentage() || lp.resolve(CSSPixelLength::new(0.0)).px() != 0.0
++        }
++        _ => false,
++    }
++}
++
+ pub(crate) fn build_inline_layout_into(
+     nodes: &crate::NodeTree,
+     layout_ctx: &mut LayoutContext<TextBrush>,
+@@ -1904,6 +1967,7 @@ pub(crate) fn build_inline_layout_into(
+     // paint bridge; measured around each push (see TextLayout).
+     let mut node_ranges_buf = NODE_RANGES_SCRATCH.with(core::cell::RefCell::take);
+     let node_ranges = &mut node_ranges_buf;
++    let mut margin_spacers = MarginSpacers::new();
+
+     if let Some(before_id) = root_node.before() {
+         build_inline_layout_recursive(
+@@ -1913,6 +1977,7 @@ pub(crate) fn build_inline_layout_into(
+             before_id,
+             &text_transform,
+             node_ranges,
++            &mut margin_spacers,
+         );
+     }
+     for child_id in root_node.flat_children().iter() {
+@@ -1923,6 +1988,7 @@ pub(crate) fn build_inline_layout_into(
+             child_id,
+             &text_transform,
+             node_ranges,
++            &mut margin_spacers,
+         );
+     }
+     if let Some(after_id) = root_node.after() {
+@@ -1933,12 +1999,14 @@ pub(crate) fn build_inline_layout_into(
+             after_id,
+             &text_transform,
+             node_ranges,
++            &mut margin_spacers,
+         );
+     }
+
+     let text = builder.build_into(text_layout.layout_for_build());
+     // An exact copy, so the scratch keeps its capacity for the next root.
+     text_layout.set_content(text, node_ranges_buf.as_slice().to_vec());
++    text_layout.set_margin_spacers(margin_spacers.spacers);
+     node_ranges_buf.clear();
+     NODE_RANGES_SCRATCH.with(|scratch| scratch.replace(node_ranges_buf));
+     return;
+@@ -1950,6 +2018,7 @@ pub(crate) fn build_inline_layout_into(
+         node_id: NodeId,
+         parent_text_transform: &CaseTransform,
+         node_ranges: &mut Vec<(NodeId, core::ops::Range<usize>)>,
++        margin_spacers: &mut MarginSpacers,
+     ) {
+         let node = &nodes[node_id];
+
+@@ -2013,6 +2082,7 @@ pub(crate) fn build_inline_layout_into(
+                                 child_id,
+                                 &text_transform,
+                                 node_ranges,
++                                margin_spacers,
+                             );
+                         }
+                         builder.pop_style_span();
+@@ -2066,6 +2136,20 @@ pub(crate) fn build_inline_layout_into(
+                                 Some(bidi_wrap_chars(ub, rtl))
+                             });
+
++                            // The margins sit outside the element's style span,
++                            // so its background and border never cover them.
++                            let start_margin = inline_margin_needs_spacer(
++                                style.map(|s| &**s),
++                                InlineMarginSide::Start,
++                            );
++                            let end_margin = inline_margin_needs_spacer(
++                                style.map(|s| &**s),
++                                InlineMarginSide::End,
++                            );
++                            if start_margin {
++                                margin_spacers.push(builder, node_id, InlineMarginSide::Start);
++                            }
++
+                             // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+                             match node.primary_styles() {
+                                 Some(s) => builder.push_style_span(
+@@ -2089,6 +2173,7 @@ pub(crate) fn build_inline_layout_into(
+                                     before_id,
+                                     &text_transform,
+                                     node_ranges,
++                                    margin_spacers,
+                                 );
+                             }
+
+@@ -2100,6 +2185,7 @@ pub(crate) fn build_inline_layout_into(
+                                     child_id,
+                                     &text_transform,
+                                     node_ranges,
++                                    margin_spacers,
+                                 );
+                             }
+                             if let Some(after_id) = node.after() {
+@@ -2110,6 +2196,7 @@ pub(crate) fn build_inline_layout_into(
+                                     after_id,
+                                     &text_transform,
+                                     node_ranges,
++                                    margin_spacers,
+                                 );
+                             }
+
+@@ -2118,6 +2205,10 @@ pub(crate) fn build_inline_layout_into(
+                             }
+
+                             builder.pop_style_span();
++
++                            if end_margin {
++                                margin_spacers.push(builder, node_id, InlineMarginSide::End);
++                            }
+                         }
+                     }
+                     // Inline box
+diff --git a/src/layout/evict.rs b/src/layout/evict.rs
+index 616991d..d65d6bc 100644
+--- a/src/layout/evict.rs
++++ b/src/layout/evict.rs
+@@ -122,17 +122,29 @@ impl BaseDocument {
+         if layout.scale() != scale {
+             return Eviction::Refused;
+         }
+-        // Without a summary every width change would reshape the root, so
+-        // such roots keep their shaped text.
+-        let Some(lines) = layout.break_summary() else {
+-            return Eviction::Unsummarized;
+-        };
+         // A summary holds only absolutely positioned boxes, the line each
+         // lands on, and where along it when their static position needs that.
++        // Horizontal-margin spacers are not boxes and have no static position.
+         let out_of_flow: Box<[NodeId]> = layout
+             .inline_boxes()
++            .filter(|ibox| !crate::node::TextLayout::is_margin_spacer(ibox.id))
+             .map(|ibox| NodeId::from_u64(ibox.id))
+             .collect();
++        // Parley's break summary keeps no in-flow inline boxes, so a root with
++        // horizontal-margin spacers cannot summarize. If spacers are its only
++        // inline boxes, still evict: the root reshapes on first access instead
++        // of keeping its shaped text resident for the whole page. Other
++        // unsummarizable roots keep their shaped text, as before.
++        let has_margin_spacer = layout
++            .inline_boxes()
++            .any(|ibox| crate::node::TextLayout::is_margin_spacer(ibox.id));
++        let only_margin_spacers = layout
++            .inline_boxes()
++            .all(|ibox| crate::node::TextLayout::is_margin_spacer(ibox.id));
++        let lines = layout.break_summary();
++        if lines.is_none() && !(has_margin_spacer && only_margin_spacers) {
++            return Eviction::Unsummarized;
++        }
+         if !out_of_flow.is_empty() && is_vertical(&self.nodes[node_id]) {
+             return Eviction::Unsummarized;
+         }
+@@ -170,7 +182,7 @@ impl BaseDocument {
+         // Content widths the layout pass measured stay in `inline.content_widths`.
+         let out_of_flow = (!out_of_flow.is_empty())
+             .then(|| Box::new(OutOfFlow { ids: out_of_flow, static_x }));
+-        let summary = Some(EvictedSummary { lines, out_of_flow });
++        let summary = lines.map(|lines| EvictedSummary { lines, out_of_flow });
+         let breaking = EvictedBreak::new(
+             max_advance,
+             indent,
 diff --git a/src/layout/inline.rs b/src/layout/inline.rs
-index 8a2445c..e258c21 100644
+index 42494ea..9da2935 100644
 --- a/src/layout/inline.rs
 +++ b/src/layout/inline.rs
-@@ -1227,11 +1227,6 @@ impl LayoutPassState<'_> {
+@@ -22,7 +22,7 @@ use stylo_taffy::StyleFlags;
+
+ use super::resolve_calc_value;
+ use crate::layout::LayoutPassState;
+-use crate::node::{TextBrush, TextLayout, count_inline_summary};
++use crate::node::{InlineMarginSide, TextBrush, TextLayout, count_inline_summary};
+ use crate::stylo_to_parley;
+
+ /// Subtract a child's margins from the definite axes of the available space it is laid out in.
+@@ -105,6 +105,30 @@ fn inline_box_inputs(
+     inputs
+ }
+
++/// Resolve one horizontal margin of a non-replaced inline box to scaled px.
++/// `basis` is the inline root's content-box width in CSS px.
++fn resolve_inline_margin_width(
++    node: &crate::Node,
++    side: InlineMarginSide,
++    basis: f32,
++    scale: f32,
++) -> f32 {
++    let Some(styles) = node.primary_styles() else {
++        return 0.0;
++    };
++    let margin = styles.clone_margin();
++    let value = match side {
++        InlineMarginSide::Start => &margin.margin_left,
++        InlineMarginSide::End => &margin.margin_right,
++    };
++    match value {
++        style::values::generics::length::GenericMargin::LengthPercentage(lp) => {
++            lp.resolve(CSSPixelLength::new(basis)).px() * scale
++        }
++        _ => 0.0,
++    }
++}
++
+ impl LayoutPassState<'_> {
+     pub(crate) fn compute_inline_layout(
+         &mut self,
+@@ -509,12 +533,40 @@ impl LayoutPassState<'_> {
+             ..child_inputs
+         };
+
++        // Horizontal margins of non-replaced inline boxes are carried by
++        // zero-height Parley inline boxes (see `construct::MarginSpacers`), so
++        // Parley charges them to line breaking, alignment and glyph positions.
++        // Resolve each spacer's width here, once the root's content width is
++        // known. Percentage margins do not contribute to intrinsic sizes, so a
++        // measure pass without a definite width treats them as zero.
++        let margin_spacers = inline_layout.margin_spacers().to_vec();
++        let margin_basis = if let Some(width) = known_dimensions.width {
++            (width - content_box_inset.horizontal_axis_sum()).max(0.0)
++        } else if inputs.run_mode == RunMode::PerformLayout {
++            let committed = self.nodes[node_id].unrounded_layout().size.width;
++            (committed - content_box_inset.horizontal_axis_sum()).max(0.0)
++        } else {
++            0.0
++        };
++        let mut next_margin_spacer = margin_spacers.iter().peekable();
++
+         // Update inline boxes
+         for ibox in inline_layout
+             .live_layout_mut()
+             .into_iter()
+             .flat_map(|layout| layout.inline_boxes_mut())
+         {
++            if let Some(spacer) = next_margin_spacer.next_if(|spacer| spacer.id == ibox.id) {
++                ibox.width = resolve_inline_margin_width(
++                    &self.nodes[spacer.node_id],
++                    spacer.side,
++                    margin_basis,
++                    scale,
++                );
++                ibox.height = 0.0;
++                ibox.baseline = None;
++                continue;
++            }
+             let style = self.child_layout_style(&self.nodes[NodeId::from_u64(ibox.id)]);
+             let margin = style
+                 .margin()
+@@ -672,6 +724,9 @@ impl LayoutPassState<'_> {
+                             .into_iter()
+                             .flat_map(|layout| layout.inline_boxes_mut())
+                         {
++                            if TextLayout::is_margin_spacer(ibox.id) {
++                                continue;
++                            }
+                             let (is_floated, margin) = {
+                                 let style =
+                                     self.child_layout_style(&self.nodes[NodeId::from_u64(ibox.id)]);
+@@ -711,6 +766,9 @@ impl LayoutPassState<'_> {
+                             .into_iter()
+                             .flat_map(|layout| layout.inline_boxes_mut())
+                         {
++                            if TextLayout::is_margin_spacer(ibox.id) {
++                                continue;
++                            }
+                             let (float, clear, margin) = {
+                                 let style =
+                                     self.child_layout_style(&self.nodes[NodeId::from_u64(ibox.id)]);
+@@ -1147,16 +1205,20 @@ impl LayoutPassState<'_> {
+         let has_inline_content = if !text_is_only_bidi_controls {
+             true
+         } else if text_kind.empty {
+-            inline_layout
+-                .live_layout()
+-                .is_some_and(|layout| layout.inline_boxes().len() > 0)
++            // A margin spacer carries no content of its own.
++            inline_layout.live_layout().is_some_and(|layout| {
++                layout
++                    .inline_boxes()
++                    .any(|ibox| !TextLayout::is_margin_spacer(ibox.id))
++            })
+         } else {
+             // On a line of bidi controls an out-of-flow box (tldraw's abspos
+             // canvas) is no content either, but parley sizes the line.
+             inline_layout.live_layout().is_some_and(|layout| {
+-                layout
+-                    .inline_boxes()
+-                    .any(|inline_box| inline_box.kind == parley::InlineBoxKind::InFlow)
++                layout.inline_boxes().any(|inline_box| {
++                    inline_box.kind == parley::InlineBoxKind::InFlow
++                        && !TextLayout::is_margin_spacer(inline_box.id)
++                })
+             })
+         };
+
+@@ -1235,11 +1297,6 @@ impl LayoutPassState<'_> {
              taffy::compute_block_align_content_offset(align_content, free_space)
          };
          inline_layout.block_offset = block_offset;
@@ -27,40 +411,16 @@ index 8a2445c..e258c21 100644
          let line_box_top = container_pb.top + block_offset;
 
          // Store sizes and positions of inline boxes
-@@ -1242,6 +1237,16 @@ impl LayoutPassState<'_> {
-         // the right edge of the narrower box the container committed to,
-         // and it clips away.
-         let commit_positions = inputs.run_mode == taffy::RunMode::PerformLayout;
-+        if commit_positions {
-+            let content_width = (final_size.width - content_box_inset.horizontal_axis_sum()).max(0.0);
-+            let line_item_offsets = inline_layout
-+                .live_layout()
-+                .map(|layout| {
-+                    compute_inline_margin_offsets(&self.nodes, node_id, Some(content_width), layout)
-+                })
-+                .unwrap_or_default();
-+            inline_layout.set_line_item_offsets(line_item_offsets);
-+        }
-         // A summarized root's inline boxes are all absolutely positioned, with
-         // static positions that need only their line, or recorded offsets
-         // along it that the summary check found current (see eviction).
-@@ -1280,33 +1285,25 @@ impl LayoutPassState<'_> {
-                 ibox_order += 1;
-             }
-         }
--        for line in inline_layout
-+        for (line_index, line) in inline_layout
-             .live_layout()
+@@ -1293,29 +1350,16 @@ impl LayoutPassState<'_> {
              .into_iter()
              .flat_map(|layout| layout.lines())
-+            .enumerate()
          {
-             // Horizontal margins on a non-replaced inline box shift the items
-             // after it on the line; atomic boxes take the shift in their layout
-             // position, text through the offsets stored on the text layout.
+-            // Horizontal margins on a non-replaced inline box shift the items
+-            // after it on the line; atomic boxes take the shift in their layout
+-            // position, text through the offsets stored on the text layout.
 -            let mut margin_shift = 0.0f32;
 -            let mut margin_node: Option<NodeId> = None;
--            for item in line.items() {
+             for item in line.items() {
 -                let item_node = match &item {
 -                    parley::PositionedLayoutItem::GlyphRun(run) => Some(run.style().brush.id),
 -                    parley::PositionedLayoutItem::InlineBox(ibox) => Some(NodeId::from_u64(ibox.id)),
@@ -74,20 +434,33 @@ index 8a2445c..e258c21 100644
 -                        margin_node = Some(node_id);
 -                    }
 -                }
-+            let line_offsets = inline_layout
-+                .line_item_offsets()
-+                .get(line_index)
-+                .map(Vec::as_slice)
-+                .unwrap_or(&[]);
-+            for (item_index, item) in line.items().enumerate() {
                  if !commit_positions {
                      break;
                  }
-+                let margin_shift = line_offsets.get(item_index).copied().unwrap_or(0.0) / scale;
                  if let parley::layout::PositionedLayoutItem::InlineBox(ibox) = item {
++                    // A margin spacer is not an element: Parley already placed
++                    // it, and it has no box to position.
++                    if TextLayout::is_margin_spacer(ibox.id) {
++                        continue;
++                    }
                      let order = ibox_order;
                      ibox_order += 1;
-@@ -1775,107 +1772,169 @@ impl crate::BaseDocument {
+                     if inputs.run_mode == RunMode::PerformLayout {
+@@ -1419,11 +1463,8 @@ impl LayoutPassState<'_> {
+                         let mut layout = node.unrounded_layout();
+                         layout.size = size;
+                         layout.scrollable_overflow_rect = output.scrollable_overflow_rect;
+-                        layout.location.x = (ibox.x / scale)
+-                            + margin.left
+-                            + container_pb.left
+-                            + inset_offset.x
+-                            + margin_shift;
++                        layout.location.x =
++                            (ibox.x / scale) + margin.left + container_pb.left + inset_offset.x;
+                         // Parley positions the margin box; offset to the border box even
+                         // when a negative top margin makes it extend above the margin box.
+                         layout.location.y =
+@@ -1783,107 +1824,4 @@ impl crate::BaseDocument {
      }
  }
 
@@ -129,45 +502,8 @@ index 8a2445c..e258c21 100644
 -                offsets
 -            })
 -            .collect()
-+/// Per line and positioned item index (`line.items()`), the inline-start offset
-+/// in scaled px contributed by horizontal margins of non-replaced inline boxes.
-+/// Start margin applies only before a box's first fragment across the layout,
-+/// and end margin only after its last fragment. Runs in O(items + distinct nodes)
-+/// and returns an empty Vec when no non-zero shift occurs.
-+/// https://drafts.csswg.org/css2/#inline-box-dimensions
-+pub(crate) fn compute_inline_margin_offsets(
-+    nodes: &crate::NodeTree,
-+    root_id: NodeId,
-+    basis_override: Option<f32>,
-+    layout: &parley::layout::Layout<crate::node::TextBrush>,
-+) -> Vec<Vec<f32>> {
-+    use parley::PositionedLayoutItem;
-+    use std::collections::HashMap;
-+
-+    let scale = layout.scale() as f32;
-+    let basis = basis_override.unwrap_or_else(|| {
-+        nodes
-+            .get(root_id)
-+            .map(|root| root.final_layout().content_box_width())
-+            .unwrap_or(0.0)
-+    });
-+
-+    // Pass 1 (O(items)): record (first_pos, last_pos) per distinct item node.
-+    let mut item_spans: HashMap<NodeId, ((usize, usize), (usize, usize))> = HashMap::new();
-+    for (line_index, line) in layout.lines().enumerate() {
-+        for (item_index, item) in line.items().enumerate() {
-+            let item_node = match &item {
-+                PositionedLayoutItem::GlyphRun(run) => run.style().brush.id,
-+                PositionedLayoutItem::InlineBox(ibox) => NodeId::from_u64(ibox.id),
-+            };
-+            let pos = (line_index, item_index);
-+            item_spans
-+                .entry(item_node)
-+                .and_modify(|span| span.1 = pos)
-+                .or_insert((pos, pos));
-+        }
-     }
-
+-    }
+-
 -    /// One inline box's horizontal margin in scaled px, resolved against the
 -    /// inline root's content width.
 -    fn inline_box_margin(&self, node_id: NodeId, leading: bool, scale: f32) -> f32 {
@@ -178,31 +514,7 @@ index 8a2445c..e258c21 100644
 -        // boxes already sit at their own margin-adjusted position.
 -        if !node.is_non_atomic_inline() {
 -            return 0.0;
-+    // Pass 2 (O(distinct nodes)): discover every non-atomic inline ancestor
-+    // once, then propagate (first_pos, last_pos) bottom-up in decreasing depth.
-+    let mut parent_of: HashMap<NodeId, Option<NodeId>> = HashMap::new();
-+    let mut spans: HashMap<NodeId, ((usize, usize), (usize, usize))> = HashMap::new();
-+    let mut order: Vec<NodeId> = Vec::new();
-+    for (&item_node, &span) in &item_spans {
-+        spans.insert(item_node, span);
-+        let mut cur = Some(item_node);
-+        let mut first_step = true;
-+        while let Some(id) = cur {
-+            if id == root_id || parent_of.contains_key(&id) {
-+                break;
-+            }
-+            let Some(node) = nodes.get(id) else {
-+                break;
-+            };
-+            if !first_step && !node.is_non_atomic_inline() {
-+                break;
-+            }
-+            let parent = node.parent_id().filter(|&pid| pid != root_id);
-+            parent_of.insert(id, parent);
-+            order.push(id);
-+            first_step = false;
-+            cur = parent;
-         }
+-        }
 -        let Some(styles) = node.primary_styles() else {
 -            return 0.0;
 -        };
@@ -219,29 +531,11 @@ index 8a2445c..e258c21 100644
 -        match value {
 -            style::values::generics::length::GenericMargin::LengthPercentage(lp) => {
 -                lp.resolve(style::values::computed::CSSPixelLength::new(basis)).px() * scale
-+    }
-+
-+    // Compute depths once (memoised) so children propagate to parents in a single pass.
-+    let mut depth_of: HashMap<NodeId, usize> = HashMap::with_capacity(order.len());
-+    for &id in &order {
-+        let mut chain = Vec::new();
-+        let mut cur = Some(id);
-+        let mut base_depth = 0usize;
-+        while let Some(cid) = cur {
-+            if let Some(&d) = depth_of.get(&cid) {
-+                base_depth = d + 1;
-+                break;
-             }
+-            }
 -            _ => 0.0,
-+            chain.push(cid);
-+            cur = parent_of.get(&cid).copied().flatten();
-+        }
-+        for (i, cid) in chain.into_iter().rev().enumerate() {
-+            depth_of.insert(cid, base_depth + i);
-         }
-     }
+-        }
+-    }
 -}
-+    order.sort_unstable_by(|a, b| depth_of[b].cmp(&depth_of[a]));
 
 -impl LayoutPassState<'_> {
 -    /// One inline box's horizontal margin in CSS px, for the item-positioning
@@ -249,27 +543,10 @@ index 8a2445c..e258c21 100644
 -    fn inline_box_margin_px(&self, node_id: NodeId, leading: bool) -> f32 {
 -        let Some(node) = self.nodes.get(node_id) else {
 -            return 0.0;
-+    let mut starts: HashMap<(usize, usize), f32> = HashMap::new();
-+    let mut ends: HashMap<(usize, usize), f32> = HashMap::new();
-+    for id in order {
-+        let Some(&(first_pos, last_pos)) = spans.get(&id) else {
-+            continue;
-         };
+-        };
 -        if !node.is_non_atomic_inline() {
 -            return 0.0;
-+        if let Some(pid) = parent_of.get(&id).copied().flatten() {
-+            spans
-+                .entry(pid)
-+                .and_modify(|p| {
-+                    if first_pos < p.0 {
-+                        p.0 = first_pos;
-+                    }
-+                    if last_pos > p.1 {
-+                        p.1 = last_pos;
-+                    }
-+                })
-+                .or_insert((first_pos, last_pos));
-         }
+-        }
 -        let Some(styles) = node.primary_styles() else {
 -            return 0.0;
 -        };
@@ -278,9 +555,7 @@ index 8a2445c..e258c21 100644
 -            &margin.margin_left
 -        } else {
 -            &margin.margin_right
-+        let Some(node) = nodes.get(id) else {
-+            continue;
-         };
+-        };
 -        let basis = node
 -            .inline_root_ancestor()
 -            .map(|root| root.final_layout().size.width)
@@ -290,66 +565,25 @@ index 8a2445c..e258c21 100644
 -                lp.resolve(style::values::computed::CSSPixelLength::new(basis)).px()
 -            }
 -            _ => 0.0,
-+        if !node.is_non_atomic_inline() {
-+            continue;
-         }
-+        let (ml, mr) = resolve_inline_horizontal_margins(node, basis, scale);
-+        if ml != 0.0 {
-+            *starts.entry(first_pos).or_insert(0.0) += ml;
-+        }
-+        if mr != 0.0 {
-+            *ends.entry(last_pos).or_insert(0.0) += mr;
-+        }
-+    }
-+
-+    if starts.is_empty() && ends.is_empty() {
-+        return Vec::new();
-     }
-+
-+    let mut any_nonzero = false;
-+    let result: Vec<Vec<f32>> = layout
-+        .lines()
-+        .enumerate()
-+        .map(|(line_index, line)| {
-+            let mut shift = 0.0f32;
-+            let mut line_offsets = Vec::new();
-+            for (item_index, _item) in line.items().enumerate() {
-+                if let Some(&delta) = starts.get(&(line_index, item_index)) {
-+                    shift += delta;
-+                }
-+                if shift != 0.0 {
-+                    any_nonzero = true;
-+                }
-+                line_offsets.push(shift);
-+                if let Some(&delta) = ends.get(&(line_index, item_index)) {
-+                    shift += delta;
-+                }
-+            }
-+            line_offsets
-+        })
-+        .collect();
-+    if any_nonzero { result } else { Vec::new() }
-+}
-+
-+fn resolve_inline_horizontal_margins(node: &crate::Node, basis: f32, scale: f32) -> (f32, f32) {
-+    let Some(styles) = node.primary_styles() else {
-+        return (0.0, 0.0);
-+    };
-+    let margin = styles.clone_margin();
-+    let resolve = |value: &style::values::generics::length::GenericMargin<
-+        style::values::computed::LengthPercentage,
-+    >| match value {
-+        style::values::generics::length::GenericMargin::LengthPercentage(lp) => {
-+            lp.resolve(style::values::computed::CSSPixelLength::new(basis))
-+                .px()
-+                * scale
-+        }
-+        _ => 0.0,
-+    };
-+    (resolve(&margin.margin_left), resolve(&margin.margin_right))
- }
+-        }
+-    }
+-}
+diff --git a/src/node/mod.rs b/src/node/mod.rs
+index 7d5cf0d..a435066 100644
+--- a/src/node/mod.rs
++++ b/src/node/mod.rs
+@@ -33,7 +33,7 @@ pub use text::{
+     inline_layout_rebuild_count, inline_summary_stats,
+ };
+ pub(crate) use text::{
+-    AlignInputs, EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, OutOfFlow, StaticX,
+-    SummaryCell, count_inline_summary,
++    AlignInputs, EvictedBreak, EvictedLayout, EvictedSummary, InlineMarginSide, InlineMarginSpacer,
++    InlineRebuild, MARGIN_SPACER_ID_BASE, OutOfFlow, StaticX, SummaryCell, count_inline_summary,
+     with_rebuild_contexts,
+ };
 diff --git a/src/node/node.rs b/src/node/node.rs
-index 2df2236..2c6fe40 100644
+index 2df2236..8a1151c 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
 @@ -2954,24 +2954,23 @@ impl Node {
@@ -401,44 +635,34 @@ index 2df2236..2c6fe40 100644
          // Descendants overwrite, so the innermost scroll container's thumb
          // wins. Thumb coords are border-box relative (unscrolled).
          if matches_self
-@@ -3133,7 +3140,7 @@ impl Node {
+@@ -3131,12 +3138,7 @@ impl Node {
+                 let text_x = x - content_box_offset.x;
+                 let text_y = y - content_box_offset.y - ild.block_offset;
 
-                 if let Some(node_id) = hit_inline_text(
-                     layout,
+-                if let Some(node_id) = hit_inline_text(
+-                    layout,
 -                    ild.line_node_offsets(),
-+                    ild.line_item_offsets(),
-                     text_x * scale,
-                     text_y * scale,
-                 ) {
-@@ -3201,8 +3208,18 @@ impl Node {
-         let scale = layout.scale();
-         let y = y - inline_layout.block_offset;
+-                    text_x * scale,
+-                    text_y * scale,
+-                ) {
++                if let Some(node_id) = hit_inline_text(layout, text_x * scale, text_y * scale) {
+                     let text_pointer_events_none = self
+                         .with(node_id)
+                         .primary_styles()
+@@ -3357,33 +3359,17 @@ impl Node {
+         }
 
-+        // Undo any per-item horizontal inline margin shift before querying Parley
-+        // clusters so click-to-caret and drag selection match painted text.
-+        let scaled_x = x * scale;
-+        let scaled_y = y * scale;
-+        let margin_shift = inline_margin_shift_at_point(
-+            layout,
-+            inline_layout.line_item_offsets(),
-+            scaled_x,
-+            scaled_y,
-+        );
-         // Use Parley's cluster hit testing (from_point is more forgiving than from_point_exact)
--        let (cluster, side) = Cluster::from_point(layout, x * scale, y * scale)?;
-+        let (cluster, side) = Cluster::from_point(layout, scaled_x - margin_shift, scaled_y)?;
-
-         // Determine byte offset based on which side of the cluster was clicked
-         // For LTR text: left side = start of cluster, right side = end of cluster
-@@ -3362,22 +3379,12 @@ impl Node {
+         // One rect per line box: the union of all of the target's fragments on that line
+-        Some(layout.lines().enumerate().filter_map(move |(line_index, line)| {
++        Some(layout.lines().filter_map(move |line| {
+             let line_metrics = line.metrics();
              let mut line_rect: Option<taffy::Rect<f32>> = None;
 
-             let line_offsets = inline_layout
+-            let line_offsets = inline_layout
 -                .line_node_offsets()
-+                .line_item_offsets()
-                 .get(line_index)
-                 .map(Vec::as_slice)
-                 .unwrap_or(&[]);
+-                .get(line_index)
+-                .map(Vec::as_slice)
+-                .unwrap_or(&[]);
 -            let shift_for = |node_id: NodeId| -> f32 {
 -                line_offsets
 -                    .iter()
@@ -446,22 +670,48 @@ index 2df2236..2c6fe40 100644
 -                    .map(|(_, offset)| *offset)
 -                    .unwrap_or(0.0)
 -            };
--            for item in line.items() {
+             for item in line.items() {
 -                let margin_shift = match &item {
 -                    PositionedLayoutItem::GlyphRun(run) => shift_for(run.style().brush.id),
 -                    PositionedLayoutItem::InlineBox(ibox) => shift_for(NodeId::from_u64(ibox.id)),
 -                };
-+            for (item_index, item) in line.items().enumerate() {
-+                let margin_shift = line_offsets.get(item_index).copied().unwrap_or(0.0);
                  match item {
                      PositionedLayoutItem::GlyphRun(glyph_run) => {
                          if !is_in_target(glyph_run.style().brush.id) {
-@@ -3666,14 +3673,11 @@ mod size_tests {
+                             continue;
+                         }
+-                        let x0 = glyph_run.offset() + margin_shift;
++                        let x0 = glyph_run.offset();
+                         let x1 = x0 + glyph_run.advance();
+                         // Use the line box's block extent rather than the
+                         // run's font ascent/descent: fonts with small
+@@ -3395,10 +3381,12 @@ impl Node {
+                         union(&mut line_rect, x0, y0, x1, y1);
+                     }
+                     PositionedLayoutItem::InlineBox(inline_box) => {
+-                        if !is_in_target(NodeId::from_u64(inline_box.id)) {
++                        if crate::node::TextLayout::is_margin_spacer(inline_box.id)
++                            || !is_in_target(NodeId::from_u64(inline_box.id))
++                        {
+                             continue;
+                         }
+-                        let x0 = inline_box.x + margin_shift;
++                        let x0 = inline_box.x;
+                         let y0 = inline_box.y;
+                         union(
+                             &mut line_rect,
+@@ -3660,57 +3648,21 @@ mod size_tests {
+     }
+ }
+
+-/// Hit-test inline glyph runs at scaled inline-root content coordinates `(px, py)`,
+-/// applying each line's recorded horizontal inline-box margin offsets so hit
+-/// testing agrees with painted text and client rects.
++/// Hit-test inline glyph runs at scaled inline-root content coordinates `(px, py)`.
  /// https://drafts.csswg.org/css2/#inline-box-dimensions
  fn hit_inline_text(
      layout: &parley::layout::Layout<crate::node::TextBrush>,
 -    line_node_offsets: &[Vec<(NodeId, f32)>],
-+    line_item_offsets: &[Vec<f32>],
      px: f32,
      py: f32,
  ) -> Option<NodeId> {
@@ -469,106 +719,55 @@ index 2df2236..2c6fe40 100644
 -        .iter()
 -        .any(|offsets| offsets.iter().any(|&(_, shift)| shift != 0.0));
 -    if !has_margin_offsets {
-+    if line_item_offsets.is_empty() {
-         // Parley's `from_point_exact` is exact in the inline axis only:
-         // `line_for_offset` clamps a block offset above the first line or below
-         // the last one onto that line, so check the line's block extent too.
-@@ -3691,20 +3695,16 @@ fn hit_inline_text(
-         if py < metrics.block_min_coord || py >= metrics.block_max_coord {
-             continue;
-         }
+-        // Parley's `from_point_exact` is exact in the inline axis only:
+-        // `line_for_offset` clamps a block offset above the first line or below
+-        // the last one onto that line, so check the line's block extent too.
+-        let (cluster, _side) = Cluster::from_point_exact(layout, px, py)?;
+-        let line = cluster.line();
+-        let metrics = line.metrics();
+-        if py >= metrics.block_min_coord && py < metrics.block_max_coord {
+-            return Some(cluster.style().brush.id);
+-        }
+-        return None;
+-    }
+-
+-    for (line_index, line) in layout.lines().enumerate() {
+-        let metrics = line.metrics();
+-        if py < metrics.block_min_coord || py >= metrics.block_max_coord {
+-            continue;
+-        }
 -        let offsets = line_node_offsets
-+        let offsets = line_item_offsets
-             .get(line_index)
-             .map(Vec::as_slice)
-             .unwrap_or(&[]);
+-            .get(line_index)
+-            .map(Vec::as_slice)
+-            .unwrap_or(&[]);
 -        for item in line.items() {
-+        for (item_index, item) in line.items().enumerate() {
-             let parley::PositionedLayoutItem::GlyphRun(glyph_run) = item else {
-                 continue;
-             };
-             let node_id = glyph_run.style().brush.id;
+-            let parley::PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+-                continue;
+-            };
+-            let node_id = glyph_run.style().brush.id;
 -            let shift = offsets
 -                .iter()
 -                .find(|(id, _)| *id == node_id)
 -                .map(|(_, offset)| *offset)
 -                .unwrap_or(0.0);
-+            let shift = offsets.get(item_index).copied().unwrap_or(0.0);
-             let x0 = glyph_run.offset() + shift;
-             let x1 = x0 + glyph_run.advance();
-             if px >= x0 && px <= x1 {
-@@ -3715,6 +3715,70 @@ fn hit_inline_text(
+-            let x0 = glyph_run.offset() + shift;
+-            let x1 = x0 + glyph_run.advance();
+-            if px >= x0 && px <= x1 {
+-                return Some(node_id);
+-            }
+-        }
++    // Parley's `from_point_exact` is exact in the inline axis only:
++    // `line_for_offset` clamps a block offset above the first line or below
++    // the last one onto that line, so check the line's block extent too.
++    let (cluster, _side) = Cluster::from_point_exact(layout, px, py)?;
++    let line = cluster.line();
++    let metrics = line.metrics();
++    if py >= metrics.block_min_coord && py < metrics.block_max_coord {
++        return Some(cluster.style().brush.id);
+     }
      None
  }
-
-+/// Find the horizontal inline-margin shift (in scaled px) of the item covering
-+/// or nearest to `(px, py)` so `Cluster::from_point` resolves in Parley space.
-+fn inline_margin_shift_at_point(
-+    layout: &parley::layout::Layout<crate::node::TextBrush>,
-+    line_item_offsets: &[Vec<f32>],
-+    px: f32,
-+    py: f32,
-+) -> f32 {
-+    if line_item_offsets.is_empty() {
-+        return 0.0;
-+    }
-+    let mut best_line: Option<usize> = None;
-+    let mut best_line_dist = f32::INFINITY;
-+    for (line_index, line) in layout.lines().enumerate() {
-+        let m = line.metrics();
-+        let dist = if py < m.block_min_coord {
-+            m.block_min_coord - py
-+        } else if py >= m.block_max_coord {
-+            py - m.block_max_coord
-+        } else {
-+            0.0
-+        };
-+        if dist < best_line_dist {
-+            best_line_dist = dist;
-+            best_line = Some(line_index);
-+            if dist == 0.0 {
-+                break;
-+            }
-+        }
-+    }
-+    let Some(line_index) = best_line else {
-+        return 0.0;
-+    };
-+    let Some(line) = layout.lines().nth(line_index) else {
-+        return 0.0;
-+    };
-+    let offsets = line_item_offsets
-+        .get(line_index)
-+        .map(Vec::as_slice)
-+        .unwrap_or(&[]);
-+    let mut best_shift = 0.0f32;
-+    let mut best_x_dist = f32::INFINITY;
-+    for (item_index, item) in line.items().enumerate() {
-+        let parley::PositionedLayoutItem::GlyphRun(run) = item else {
-+            continue;
-+        };
-+        let shift = offsets.get(item_index).copied().unwrap_or(0.0);
-+        let x0 = run.offset() + shift;
-+        let x1 = x0 + run.advance();
-+        let dist = if px < x0 {
-+            x0 - px
-+        } else if px > x1 {
-+            px - x1
-+        } else {
-+            return shift;
-+        };
-+        if dist < best_x_dist {
-+            best_x_dist = dist;
-+            best_shift = shift;
-+        }
-+    }
-+    best_shift
-+}
-+
- /// Whether a point local to the node's border box falls inside its `clip-path`.
- /// Shapes this build cannot evaluate are treated as covering everything, so an
- /// unsupported clip never makes an element unhittable.
-@@ -3734,12 +3798,12 @@ fn point_inside_clip_path(node: &Node, x: f32, y: f32) -> bool {
+@@ -3734,12 +3686,12 @@ fn point_inside_clip_path(node: &Node, x: f32, y: f32) -> bool {
      match shape.as_ref() {
          GenericBasicShape::Circle(circle) => {
              let (cx, cy) = clip_position(&circle.position, w, h);
@@ -584,7 +783,7 @@ index 2df2236..2c6fe40 100644
              ((px - cx) / rx).powi(2) + ((py - cy) / ry).powi(2) <= 1.0
          }
          GenericBasicShape::Rect(inset) => {
-@@ -3785,31 +3849,44 @@ fn clip_position(
+@@ -3785,31 +3737,44 @@ fn clip_position(
      }
  }
 
@@ -649,10 +848,44 @@ index 2df2236..2c6fe40 100644
  }
 
 diff --git a/src/node/text.rs b/src/node/text.rs
-index dbfd66b..a7e7213 100644
+index dbfd66b..57bd9f2 100644
 --- a/src/node/text.rs
 +++ b/src/node/text.rs
-@@ -74,10 +74,10 @@ const _: () = assert!(size_of::<TextLayout>() <= 44);
+@@ -68,16 +68,42 @@ pub struct TextLayout {
+ #[cfg(target_pointer_width = "32")]
+ const _: () = assert!(size_of::<TextLayout>() <= 44);
+
++/// The first synthetic inline-box id used for a horizontal inline margin spacer.
++///
++/// A real [`NodeId`] packs a slot index and a version, so its raw value is
++/// below `u32::MAX << 32`. Spacer ids start at the top half of the `u64` range
++/// and count up, so they never resolve as nodes and can be recognised by value.
++pub(crate) const MARGIN_SPACER_ID_BASE: u64 = 1 << 63;
++
++/// Which horizontal margin of a non-replaced inline box a spacer carries.
++#[derive(Clone, Copy, PartialEq, Eq, Debug)]
++pub(crate) enum InlineMarginSide {
++    Start,
++    End,
++}
++
++/// A zero-height Parley inline box that carries one horizontal margin of a
++/// non-replaced inline box. Pushing the margin into the layout makes Parley
++/// charge it to line breaking, alignment and glyph positions; the spacer sits
++/// outside the styled span's fragment so the span's background and border do
++/// not cover the margin.
++#[derive(Clone, Copy, Debug)]
++pub(crate) struct InlineMarginSpacer {
++    /// The Parley inline-box id (a synthetic value, not a `NodeId`).
++    pub id: u64,
++    /// The inline element whose margin this spacer carries.
++    pub node_id: NodeId,
++    pub side: InlineMarginSide,
++}
++
+ /// A shaped layout and the text it was built from, which are always built
+ /// and evicted together.
+ #[derive(Clone, Default)]
  struct Built {
      layout: parley::layout::Layout<TextBrush>,
      content: TextContent,
@@ -660,73 +893,69 @@ index dbfd66b..a7e7213 100644
 -    /// contributed by the horizontal margins of the non-replaced inline boxes
 -    /// the line passes through. Keyed by node id.
 -    line_node_offsets: Vec<Vec<(NodeId, f32)>>,
-+    /// Per line, the inline-start offset (in scaled px) of each positioned item
-+    /// (`line.items()` index), contributed by horizontal margins of non-replaced
-+    /// inline boxes. Empty when no inline box in the layout has horizontal margins.
-+    line_item_offsets: Vec<Vec<f32>>,
++    /// Horizontal-margin spacers pushed into `layout`, in layout order.
++    margin_spacers: Vec<InlineMarginSpacer>,
  }
 
  #[derive(Clone, Default)]
-@@ -574,16 +574,16 @@ impl TextLayout {
+@@ -574,19 +600,25 @@ impl TextLayout {
          self.built.get_mut().map(|built| &mut built.layout)
      }
 
 -    pub fn line_node_offsets(&self) -> &[Vec<(NodeId, f32)>] {
-+    pub fn line_item_offsets(&self) -> &[Vec<f32>] {
++    /// The horizontal-margin spacers pushed into this root's layout.
++    pub(crate) fn margin_spacers(&self) -> &[InlineMarginSpacer] {
          self.built
              .get()
 -            .map(|built| built.line_node_offsets.as_slice())
-+            .map(|built| built.line_item_offsets.as_slice())
++            .map(|built| built.margin_spacers.as_slice())
              .unwrap_or(&[])
      }
 
 -    pub fn set_line_node_offsets(&mut self, offsets: Vec<Vec<(NodeId, f32)>>) {
-+    pub fn set_line_item_offsets(&mut self, offsets: Vec<Vec<f32>>) {
++    pub(crate) fn set_margin_spacers(&mut self, spacers: Vec<InlineMarginSpacer>) {
          if let Some(built) = self.built.get_mut() {
 -            built.line_node_offsets = offsets;
-+            built.line_item_offsets = offsets;
++            built.margin_spacers = spacers;
          }
      }
 
-@@ -655,6 +655,12 @@ fn rebuild_evicted_layout(nodes: &crate::NodeTree, evicted: &EvictedLayout) -> B
-             },
-         );
-     }
-+    built.line_item_offsets = crate::layout::inline::compute_inline_margin_offsets(
-+        nodes,
-+        evicted.node_id,
-+        None,
-+        &built.layout,
-+    );
-     built
- }
-
++    /// Whether `id` names a horizontal-margin spacer rather than a node.
++    pub fn is_margin_spacer(id: u64) -> bool {
++        id >= MARGIN_SPACER_ID_BASE
++    }
++
+     /// Clear the read flag, returning whether it was set.
+     pub(crate) fn take_recently_read(&self) -> bool {
+         self.recently_read.0.swap(false, Ordering::Relaxed)
 diff --git a/src/resolve.rs b/src/resolve.rs
-index aaf264e..825d6dd 100644
+index aaf264e..f3ea86a 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
-@@ -1103,7 +1103,14 @@ impl BaseDocument {
-                 .element_data()
-                 .and_then(|el| el.inline_layout_data())
-                 .and_then(|data| data.live_layout())
--                .map(|layout| self.inline_margin_offsets(layout))
-+                .map(|layout| {
-+                    crate::layout::inline::compute_inline_margin_offsets(
-+                        &self.nodes,
-+                        id,
-+                        None,
-+                        layout,
-+                    )
-+                })
-             else {
-                 continue;
-             };
-@@ -1111,7 +1118,7 @@ impl BaseDocument {
-                 .element_data_mut()
-                 .and_then(|el| el.inline_layout_data_mut())
-             {
--                layout.set_line_node_offsets(offsets);
-+                layout.set_line_item_offsets(offsets);
-             }
+@@ -1094,26 +1094,5 @@ impl BaseDocument {
+         for (id, content_w) in stale {
+             self.rebreak_inline_to_width(id, content_w);
          }
-         self.inline_roots = roots;
+-        // Inline margins are read off the finished line boxes, so the offsets
+-        // are refreshed here for every resident root rather than only where
+-        // the layout was built.
+-        let roots = std::mem::take(&mut self.inline_roots);
+-        for &id in &roots {
+-            let Some(offsets) = self.nodes[id]
+-                .element_data()
+-                .and_then(|el| el.inline_layout_data())
+-                .and_then(|data| data.live_layout())
+-                .map(|layout| self.inline_margin_offsets(layout))
+-            else {
+-                continue;
+-            };
+-            if let Some(layout) = self.nodes[id]
+-                .element_data_mut()
+-                .and_then(|el| el.inline_layout_data_mut())
+-            {
+-                layout.set_line_node_offsets(offsets);
+-            }
+-        }
+-        self.inline_roots = roots;
+     }
+ }

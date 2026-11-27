@@ -15,14 +15,14 @@ inline text instead of occupying its own line.
 Stretch in-flow `DisplayOutside::Block` inline boxes with `width: auto` to the
 available line width minus margins per CSS2 §9.2.1.1 / §10.3.3.
 ---
- src/layout/inline.rs | 15 ++++++++++++++-
- 1 file changed, 14 insertions(+), 1 deletion(-)
+ src/layout/inline.rs | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
 
 diff --git a/src/layout/inline.rs b/src/layout/inline.rs
-index 9ce5eb2..8a2445c 100644
+index 9ce5eb2..42494ea 100644
 --- a/src/layout/inline.rs
 +++ b/src/layout/inline.rs
-@@ -554,7 +554,20 @@ impl LayoutPassState<'_> {
+@@ -554,7 +554,28 @@ impl LayoutPassState<'_> {
              let exports_baseline = !(baseline_source == BaselineSource::Auto
                  && is_block_axis_scroll_container)
                  && !contain_layout;
@@ -36,7 +36,15 @@ index 9ce5eb2..8a2445c 100644
 +            // `a::before { display: block }`) stretches to the line's available
 +            // width when `width: auto`, placing it on its own line per CSS2 §9.2.1.1.
 +            // https://drafts.csswg.org/css2/#anonymous-block-level
-+            if is_inflow_block && style.size().width.is_auto() {
++            //
++            // Only stretch when the inline root's own width is definite. A
++            // shrink-to-fit container (inline-block, float, abspos) is measured
++            // under a definite available width with no known width of its own;
++            // stretching there would report the available width as the pseudo's
++            // max-content contribution and make the container fill the line
++            // instead of shrink-to-fit. Its pseudo keeps its content width.
++            let inline_root_width_is_definite = known_dimensions.width.is_some();
++            if is_inflow_block && style.size().width.is_auto() && inline_root_width_is_definite {
 +                if let Some(width) = box_inputs.available_space.width.into_option() {
 +                    box_inputs.known_dimensions.width = Some(width);
 +                }

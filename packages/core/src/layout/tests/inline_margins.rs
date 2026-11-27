@@ -9,6 +9,20 @@
 // https://drafts.csswg.org/css2/#inline-box-dimensions
 
 use crate::DomHandle;
+use blitz_dom::node::TextBrush;
+
+/// `(offset, advance)` of each glyph run on `line`, in layout order. Inline
+/// boxes (including margin spacers) are skipped.
+fn run_spans(line: &parley::layout::Line<'_, TextBrush>) -> Vec<(f32, f32)> {
+    line.items()
+        .filter_map(|item| match item {
+            parley::layout::PositionedLayoutItem::GlyphRun(run) => {
+                Some((run.offset(), run.advance()))
+            }
+            _ => None,
+        })
+        .collect()
+}
 
 const PAGE: &str = r#"<html><head><style>
   body { margin: 0; font: 16px sans-serif }
@@ -89,24 +103,26 @@ fn text_after_inline_margin_span_shifts_without_overlapping() {
     let (p_left, _p_top, p_width, _p_height) = dom.test_get_inline_aware_rect(p_id);
     let (b_left, _b_top, b_width, _b_height) = dom.test_get_inline_aware_rect(b_id);
 
-    // Check the recorded per-item shifts on the paragraph's line:
-    // item 0 ("AA ") has shift 0; item 1 ("BB") has shift 80; item 2 (" CC") also has shift 80.
+    // The span's margin is a Parley spacer, so the glyph runs after it are
+    // positioned by the line breaker and no separate offset is applied.
     let doc = dom.doc.borrow();
     let p_node = doc.as_ref().get_node(crate::blitz_node_id(p_id)).unwrap();
     let inline = p_node.element_data().unwrap().inline_layout_data().unwrap();
-    let offsets = inline.line_item_offsets();
-    assert_eq!(offsets.len(), 1, "single line expected");
-    assert!(offsets[0].len() >= 3, "expected 3 runs: {:?}", offsets[0]);
-    assert_eq!(offsets[0][0], 0.0, "text before span must stay at shift 0");
+    let layout = inline.layout(p_node.tree());
+    let lines: Vec<_> = layout.lines().collect();
+    assert_eq!(lines.len(), 1, "single line expected");
+    let spans = run_spans(&lines[0]);
+    assert_eq!(spans.len(), 3, "expected 3 runs: {spans:?}");
+    assert_eq!(spans[0].0, 0.0, "text before span must stay at x=0");
+    let expected_second = spans[0].0 + spans[0].1 + 80.0;
     assert!(
-        (offsets[0][1] - 80.0).abs() < 0.5,
-        "span run must shift by 80px: {:?}",
-        offsets[0]
+        (spans[1].0 - expected_second).abs() < 0.5,
+        "span run must start after the preceding text plus 80px: {spans:?}"
     );
+    let expected_third = spans[1].0 + spans[1].1;
     assert!(
-        (offsets[0][2] - 80.0).abs() < 0.5,
-        "trailing text run after span must keep the 80px shift: {:?}",
-        offsets[0]
+        (spans[2].0 - expected_third).abs() < 0.5,
+        "trailing text must continue after the span: {spans:?}"
     );
     assert!(
         p_left + p_width > b_left + b_width + 10.0,
@@ -128,25 +144,92 @@ fn wrapped_inline_span_applies_start_margin_only_on_first_fragment_and_end_margi
     let doc = dom.doc.borrow();
     let p_node = doc.as_ref().get_node(crate::blitz_node_id(p_id)).unwrap();
     let inline = p_node.element_data().unwrap().inline_layout_data().unwrap();
-    let offsets = inline.line_item_offsets();
-    assert_eq!(offsets.len(), 2, "expected 2 lines: {offsets:?}");
-    // Line 0: "AA " at 0, "first" at +40.
-    assert_eq!(offsets[0][0], 0.0);
+    let layout = inline.layout(p_node.tree());
+    let lines: Vec<_> = layout.lines().collect();
+    assert_eq!(lines.len(), 2, "expected 2 lines");
+    // Line 0: "AA " at 0, "first" after the 40px start margin.
+    let line0 = run_spans(&lines[0]);
+    assert_eq!(line0[0].0, 0.0);
+    let expected_first = line0[0].0 + line0[0].1 + 40.0;
     assert!(
-        (offsets[0][1] - 40.0).abs() < 0.5,
-        "line 0: {:?}",
-        offsets[0]
+        (line0[1].0 - expected_first).abs() < 0.5,
+        "line 0: {line0:?}"
     );
-    // Line 1: "second" starts at 0 (no repeated margin-left), trailing runs shift by +30.
+    // Line 1: "second" starts at 0 (no repeated margin-left); the next run
+    // begins after the 30px end margin.
+    let line1 = run_spans(&lines[1]);
     assert_eq!(
-        offsets[1][0], 0.0,
-        "wrapped fragment must not re-apply margin-left: {:?}",
-        offsets[1]
+        line1[0].0, 0.0,
+        "wrapped fragment must not re-apply margin-left: {line1:?}"
     );
+    let expected_after = line1[0].0 + line1[0].1 + 30.0;
     assert!(
-        offsets[1].last().is_some_and(|&s| (s - 30.0).abs() < 0.5),
-        "text after last fragment must shift by margin-right: {:?}",
-        offsets[1]
+        (line1[1].0 - expected_after).abs() < 0.5,
+        "text after the last fragment must start after margin-right: {line1:?}"
+    );
+}
+
+/// A span's start margin is charged to the line breaker, so a line that only
+/// fits with the margin is not laid out past the box edge.
+#[test]
+fn wrapped_line_accounts_for_inline_start_margin() {
+    let html = r#"<html><head><style>
+      body { margin: 0; font: 20px monospace; }
+      #box { width: 240px; }
+      #s { margin-left: 60px; }
+    </style></head><body>
+      <div id="box">AAAA <span id="s">BBBB</span> CCCC DDDD EEEE</div>
+    </body></html>"#;
+    let dom = DomHandle::new(html, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    let box_id = dom.query_selector("#box").expect("#box") as u32;
+    let s_id = dom.query_selector("#s").expect("#s") as u32;
+    let (box_left, _, box_width, _) = dom.test_get_inline_aware_rect(box_id);
+    let (s_left, _, s_width, _) = dom.test_get_inline_aware_rect(s_id);
+    let box_right = box_left + box_width;
+    assert!(
+        s_left + s_width <= box_right + 0.5,
+        "span must not spill past the box: span right={} box right={box_right}",
+        s_left + s_width
+    );
+
+    let doc = dom.doc.borrow();
+    let node = doc.as_ref().get_node(crate::blitz_node_id(box_id)).unwrap();
+    let inline = node.element_data().unwrap().inline_layout_data().unwrap();
+    let layout = inline.layout(node.tree());
+    assert!(
+        layout.width() <= 240.5,
+        "line breaking must include the 60px margin: width={}",
+        layout.width()
+    );
+}
+
+/// Right alignment shifts the whole line, margin included, so the span's right
+/// edge still lands on the box's right edge instead of spilling past it.
+#[test]
+fn right_aligned_line_keeps_inline_start_margin_inside_box() {
+    let html = r#"<html><head><style>
+      body { margin: 0; font: 20px monospace; }
+      #box { width: 240px; text-align: right; }
+      #s { margin-left: 60px; }
+    </style></head><body>
+      <div id="box">x <span id="s">RRRR</span></div>
+    </body></html>"#;
+    let dom = DomHandle::new(html, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    let box_id = dom.query_selector("#box").expect("#box") as u32;
+    let s_id = dom.query_selector("#s").expect("#s") as u32;
+    let (box_left, _, box_width, _) = dom.test_get_inline_aware_rect(box_id);
+    let (s_left, _, s_width, _) = dom.test_get_inline_aware_rect(s_id);
+    let box_right = box_left + box_width;
+    assert!(
+        (s_left + s_width - box_right).abs() < 1.0,
+        "right-aligned span must end at the box edge: span right={} box right={box_right}",
+        s_left + s_width
     );
 }
 
@@ -289,12 +372,13 @@ fn percentage_inline_margin_resolves_against_content_box_width() {
     let doc = dom.doc.borrow();
     let node = doc.as_ref().get_node(crate::blitz_node_id(box_id)).unwrap();
     let inline = node.element_data().unwrap().inline_layout_data().unwrap();
-    let offsets = inline.line_item_offsets();
-    assert_eq!(offsets.len(), 1);
+    let layout = inline.layout(node.tree());
+    let lines: Vec<_> = layout.lines().collect();
+    assert_eq!(lines.len(), 1);
+    let spans = run_spans(&lines[0]);
     // 10% of 200px content-box width = 20px (not 30px from 300px border-box width).
     assert!(
-        (offsets[0][0] - 20.0).abs() < 0.5,
-        "expected 20px margin from content box width, got {:?}",
-        offsets[0]
+        (spans[0].0 - 20.0).abs() < 0.5,
+        "expected 20px margin from content box width, got {spans:?}"
     );
 }

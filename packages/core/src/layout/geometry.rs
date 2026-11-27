@@ -7,8 +7,7 @@
 
 use std::panic;
 
-use blitz_dom::node::SpecialElementData;
-use blitz_dom::node::TextBrush;
+use blitz_dom::node::{SpecialElementData, TextBrush, TextLayout};
 use blitz_dom::{local_name, ns, util::Point, BaseDocument, Node, NodeData};
 use blitz_html::HtmlDocument;
 use blitz_traits::NodeId;
@@ -825,53 +824,16 @@ fn inline_line_rects_for_node(
     };
 
     let mut entries = Vec::new();
-    let line_item_offsets = inline.line_item_offsets();
     collect_fragment_bounds(
         &mut entries,
         layout.styles(),
         &lines,
         layout.span_fragments(),
-        line_item_offsets,
         node_id,
         &origin,
     );
-    collect_item_bounds(&mut entries, &lines, line_item_offsets, &origin, &accepted);
+    collect_item_bounds(&mut entries, &lines, &origin, &accepted);
     merge_line_bounds(entries)
-}
-
-fn line_item_margin_shift(
-    line_item_offsets: &[Vec<f32>],
-    line_index: usize,
-    item_index: usize,
-) -> f32 {
-    line_item_offsets
-        .get(line_index)
-        .and_then(|offsets| offsets.get(item_index).copied())
-        .unwrap_or(0.0)
-}
-
-fn fragment_margin_shift(
-    lines: &[parley::layout::Line<'_, TextBrush>],
-    line_item_offsets: &[Vec<f32>],
-    line_index: usize,
-    node_id: NodeId,
-) -> f32 {
-    let Some(offsets) = line_item_offsets.get(line_index) else {
-        return 0.0;
-    };
-    let Some(line) = lines.get(line_index) else {
-        return 0.0;
-    };
-    for (item_index, item) in line.items().enumerate() {
-        let item_node = match item {
-            parley::layout::PositionedLayoutItem::GlyphRun(run) => run.style().brush.id,
-            parley::layout::PositionedLayoutItem::InlineBox(ibox) => NodeId::from_u64(ibox.id),
-        };
-        if item_node == node_id {
-            return offsets.get(item_index).copied().unwrap_or(0.0);
-        }
-    }
-    0.0
 }
 
 /// Fragments contribute only the queried inline's own padding and border. Its text and atomic
@@ -881,7 +843,6 @@ fn collect_fragment_bounds(
     styles: &[parley::layout::Style<TextBrush>],
     lines: &[parley::layout::Line<'_, TextBrush>],
     fragments: &[parley::layout::SpanFragment],
-    line_item_offsets: &[Vec<f32>],
     node_id: NodeId,
     origin: &InlineOrigin,
 ) {
@@ -902,15 +863,9 @@ fn collect_fragment_bounds(
             continue;
         };
 
-        let margin_shift = fragment_margin_shift(
-            lines,
-            line_item_offsets,
-            fragment.line_index as usize,
-            style.brush.id,
-        );
         let x_origin = metrics.inline_min_coord + metrics.offset;
-        let x0 = origin.x + origin.content_x + x_origin + fragment.x_start + margin_shift;
-        let x1 = origin.x + origin.content_x + x_origin + fragment.x_end + margin_shift;
+        let x0 = origin.x + origin.content_x + x_origin + fragment.x_start;
+        let x1 = origin.x + origin.content_x + x_origin + fragment.x_end;
         let y0 = origin.y + origin.content_y + metrics.block_min_coord;
         let y1 = origin.y + origin.content_y + metrics.block_max_coord;
         entries.push((fragment.line_index as usize, origin.bounds(x0, y0, x1, y1)));
@@ -921,20 +876,12 @@ fn collect_fragment_bounds(
 fn collect_item_bounds(
     entries: &mut Vec<LineBounds>,
     lines: &[parley::layout::Line<'_, TextBrush>],
-    line_item_offsets: &[Vec<f32>],
     origin: &InlineOrigin,
     accepted: &impl Fn(NodeId) -> bool,
 ) {
     for (line_index, line) in lines.iter().enumerate() {
-        for (item_index, item) in line.items().enumerate() {
-            let Some(bounds) = item_bounds(
-                item,
-                line_item_offsets,
-                line_index,
-                item_index,
-                origin,
-                accepted,
-            ) else {
+        for item in line.items() {
+            let Some(bounds) = item_bounds(item, origin, accepted) else {
                 continue;
             };
             entries.push((line_index, bounds));
@@ -944,9 +891,6 @@ fn collect_item_bounds(
 
 fn item_bounds(
     item: parley::layout::PositionedLayoutItem<'_, TextBrush>,
-    line_item_offsets: &[Vec<f32>],
-    line_index: usize,
-    item_index: usize,
     origin: &InlineOrigin,
     accepted: &impl Fn(NodeId) -> bool,
 ) -> Option<(f32, f32, f32, f32)> {
@@ -955,8 +899,7 @@ fn item_bounds(
             // Glyph-run coordinates include the line's alignment offset.
             let metrics = run.run().font_metrics();
             let baseline = run.baseline();
-            let shift = line_item_margin_shift(line_item_offsets, line_index, item_index);
-            let x0 = origin.x + origin.content_x + run.offset() + shift;
+            let x0 = origin.x + origin.content_x + run.offset();
             let x1 = x0 + run.advance();
             let y0 = origin.y + origin.content_y + baseline - metrics.ascent;
             let y1 = origin.y + origin.content_y + baseline + metrics.descent;
@@ -964,10 +907,10 @@ fn item_bounds(
         }
         parley::layout::PositionedLayoutItem::InlineBox(ibox)
             if ibox.kind == parley::InlineBoxKind::InFlow
+                && !TextLayout::is_margin_spacer(ibox.id)
                 && accepted(NodeId::from_u64(ibox.id)) =>
         {
-            let shift = line_item_margin_shift(line_item_offsets, line_index, item_index);
-            let x0 = origin.x + origin.content_x + ibox.x + shift;
+            let x0 = origin.x + origin.content_x + ibox.x;
             let y0 = origin.y + origin.content_y + ibox.y;
             Some(origin.bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
         }
