@@ -19,10 +19,10 @@ the extra call keeps behaviour and removes the redundant work.
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index f5ad587..89387bd 100644
+index f7a1a5e..4cbc580 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -1984,12 +1984,13 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1994,12 +1994,13 @@ impl<'doc> DocumentMutator<'doc> {
                  self.doc.remove_shadow_stylesheet(shadow_root_id, stylesheet);
              }
              None => {

@@ -33,10 +33,10 @@ index 95b454b..b8d262d 100644
      /// in-flight image fetch (any URL). Complements image_cache_has
      /// for the srcset case: the JS side can't re-run candidate
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 6be1c0a..6f6f28b 100644
+index ac0be09..bb4879e 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -783,6 +783,10 @@ impl DocumentMutator<'_> {
+@@ -793,6 +793,10 @@ impl DocumentMutator<'_> {
              self.recompute_is_animating = true;
          } else if (tag, attr) == tag_and_attr!("link", "href") {
              self.unload_stylesheet(node_id);
@@ -47,7 +47,7 @@ index 6be1c0a..6f6f28b 100644
          } else if (tag, attr) == tag_and_attr!("iframe", "srcdoc") && node_is_in_document {
              // Fall back to loading from the `src` attribute (if any)
              self.load_iframe(node_id);
-@@ -1948,6 +1952,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1958,6 +1962,9 @@ impl<'doc> DocumentMutator<'doc> {
          {
              return;
          }
@@ -57,7 +57,7 @@ index 6be1c0a..6f6f28b 100644
 
          // A `crossorigin` attribute (any value, including the
          // empty string) puts the CSS fetch in mode "cors"; its absence
-@@ -1961,6 +1968,10 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1971,6 +1978,10 @@ impl<'doc> DocumentMutator<'doc> {
          // Carry the media attribute to the parse so the built
          // sheet is scoped to it (print sheets must not apply on screen).
          let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
@@ -68,7 +68,7 @@ index 6be1c0a..6f6f28b 100644
 
          let Some(url) = self.doc.resolve_url(href) else {
              return;
-@@ -1983,7 +1994,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1993,7 +2004,7 @@ impl<'doc> DocumentMutator<'doc> {
              },
          );
 

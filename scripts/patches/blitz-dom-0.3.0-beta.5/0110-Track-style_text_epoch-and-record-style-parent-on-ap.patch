@@ -61,7 +61,7 @@ index 2520453..eb39c5b 100644
 
  #[cfg(test)]
 diff --git a/src/mutator.rs b/src/mutator.rs
-index e13a765..84c6212 100644
+index 5b0cf36..419adc5 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -371,12 +371,17 @@ impl DocumentMutator<'_> {
@@ -101,7 +101,7 @@ index e13a765..84c6212 100644
                  Ok(())
              }
              None => Err(AppendTextErr::NotTextNode),
-@@ -1772,6 +1775,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1782,6 +1785,7 @@ impl<'doc> DocumentMutator<'doc> {
                  "title" => self.title_node = Some(node_id),
                  "style" => {
                      self.style_nodes.insert(node_id);
@@ -109,7 +109,7 @@ index e13a765..84c6212 100644
                  }
                  "base" => {
                      doc.base_epoch = doc.base_epoch.wrapping_add(1);
-@@ -1838,6 +1842,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1848,6 +1852,7 @@ impl<'doc> DocumentMutator<'doc> {
              if is_style {
                  doc.pending_style_nodes.remove(&node_id);
                  doc.remove_author_stylesheet(node_id);
@@ -117,7 +117,7 @@ index e13a765..84c6212 100644
              }
 
              // A removed slot's assignees live outside this subtree, and the flat-tree
-@@ -1930,6 +1935,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1940,6 +1945,7 @@ impl<'doc> DocumentMutator<'doc> {
              "title" => self.title_node = Some(node_id),
              "style" => {
                  self.style_nodes.insert(node_id);

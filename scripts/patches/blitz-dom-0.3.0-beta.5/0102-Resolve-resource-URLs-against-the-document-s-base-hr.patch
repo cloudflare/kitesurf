@@ -297,7 +297,7 @@ index 7834b3c..963ab76 100644
      }
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 371766d..f5ad587 100644
+index 351e48c..f7a1a5e 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -222,7 +222,11 @@ impl DocumentMutator<'_> {
@@ -333,7 +333,7 @@ index 371766d..f5ad587 100644
              node.set_restyle_hint(RestyleHint::RESTYLE_STYLE_ATTRIBUTE);
              return;
          }
-@@ -760,7 +768,8 @@ impl DocumentMutator<'_> {
+@@ -770,7 +778,8 @@ impl DocumentMutator<'_> {
          }
 
          if *attr == local_name!("style") {
@@ -343,7 +343,7 @@ index 371766d..f5ad587 100644
              node.set_restyle_hint(RestyleHint::RESTYLE_STYLE_ATTRIBUTE);
          } else if (tag, attr) == tag_and_attr!("input", "checked") {
              element.set_checkbox_input_checked(false);
-@@ -1669,7 +1678,10 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1679,7 +1688,10 @@ impl<'doc> DocumentMutator<'doc> {
                  "style" => {
                      self.style_nodes.insert(node_id);
                  }
@@ -355,7 +355,7 @@ index 371766d..f5ad587 100644
                  _ if has_custom_widget => {}
                  "link" => self.eager_op_queue.push(SpecialOp::LoadStylesheet(node_id)),
                  "img" => self.eager_op_queue.push(SpecialOp::LoadImage(node_id)),
-@@ -1720,6 +1732,10 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1730,6 +1742,10 @@ impl<'doc> DocumentMutator<'doc> {
 
              if doc.nodes[node_id].data.is_element_with_tag_name(&local_name!("base")) {
                  doc.base_epoch = doc.base_epoch.wrapping_add(1);
@@ -366,7 +366,7 @@ index 371766d..f5ad587 100644
              }
              let is_style = doc.nodes[node_id]
                  .data
-@@ -1825,6 +1841,8 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1835,6 +1851,8 @@ impl<'doc> DocumentMutator<'doc> {
      }
 
      fn load_linked_stylesheet(&mut self, target_id: NodeId) {
@@ -375,7 +375,7 @@ index 371766d..f5ad587 100644
          let node = &self.doc.nodes[target_id];
 
          let mut is_in_head = false;
-@@ -1863,9 +1881,12 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1873,9 +1891,12 @@ impl<'doc> DocumentMutator<'doc> {
          // sheet is scoped to it (print sheets must not apply on screen).
          let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
 
@@ -389,7 +389,7 @@ index 371766d..f5ad587 100644
          let handler = ResourceHandler::new(
              self.doc.tx.clone(),
              self.doc.id(),
-@@ -2130,6 +2151,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2140,6 +2161,7 @@ impl<'doc> DocumentMutator<'doc> {
      }
 
      fn load_image(&mut self, target_id: NodeId) {
@@ -397,7 +397,7 @@ index 371766d..f5ad587 100644
          if self.doc.nodes[target_id]
              .element_data()
              .is_some_and(|element| *element.namespace() == ns!(svg))
-@@ -2163,7 +2185,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2173,7 +2195,7 @@ impl<'doc> DocumentMutator<'doc> {
                  // shim detects unresolvable srcs on the attribute
                  // hook and fires the error event; wasm-side we just
                  // skip the fetch.
@@ -406,7 +406,7 @@ index 371766d..f5ad587 100644
                      return;
                  };
                  let display_dim = self.read_img_display_dim(target_id);
-@@ -2232,6 +2254,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2242,6 +2264,7 @@ impl<'doc> DocumentMutator<'doc> {
      }
 
      fn load_iframe(&mut self, target_id: NodeId) {
@@ -414,7 +414,7 @@ index 371766d..f5ad587 100644
          if self.doc.subdocument_depth >= crate::iframe::MAX_SUBDOCUMENT_DEPTH {
              #[cfg(feature = "tracing")]
              tracing::warn!(
-@@ -2259,7 +2282,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2269,7 +2292,7 @@ impl<'doc> DocumentMutator<'doc> {
          if raw_src.is_empty() {
              return;
          }
@@ -423,7 +423,7 @@ index 371766d..f5ad587 100644
              #[cfg(feature = "tracing")]
              tracing::warn!("Not loading iframe: could not resolve url {raw_src}");
              return;
-@@ -3420,6 +3443,106 @@ mod test {
+@@ -3430,6 +3453,106 @@ mod test {
          assert_ne!(document.base_epoch, rewritten, "removing the href moves it");
      }
 

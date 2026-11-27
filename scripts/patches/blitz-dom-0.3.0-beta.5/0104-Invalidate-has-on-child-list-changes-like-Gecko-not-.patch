@@ -20,7 +20,7 @@ the whole-parent restyle, now on removal too.
  2 files changed, 251 insertions(+), 60 deletions(-)
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 89387bd..9846f5e 100644
+index 4cbc580..527a7f9 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -20,6 +20,7 @@ use crate::{
@@ -43,7 +43,7 @@ index 89387bd..9846f5e 100644
  /// Whether inserting a child must recascade the parent's whole subtree: a flat tree that
  /// slotting reshapes, or a direction that comes from content. Anything else goes through
  /// `restyle_for_child_list_change`, which reads the parent's selector flags.
-@@ -853,7 +859,7 @@ impl DocumentMutator<'_> {
+@@ -863,7 +869,7 @@ impl DocumentMutator<'_> {
              let index = parent.index_of_child(node_id).unwrap_or(0);
              parent.remove_child(node_id);
              if node_is_in_document {
@@ -52,7 +52,7 @@ index 89387bd..9846f5e 100644
                  devtools!(
                      self,
                      MutationRecord::NodeRemoved(NodeRemoved { parent_id, node_id })
-@@ -899,7 +905,7 @@ impl DocumentMutator<'_> {
+@@ -909,7 +915,7 @@ impl DocumentMutator<'_> {
              parent.remove_child(node_id);
 
              if parent_is_in_doc {
@@ -61,7 +61,7 @@ index 89387bd..9846f5e 100644
                  devtools!(
                      self,
                      MutationRecord::NodeRemoved(NodeRemoved { parent_id, node_id })
-@@ -927,7 +933,7 @@ impl DocumentMutator<'_> {
+@@ -937,7 +943,7 @@ impl DocumentMutator<'_> {
          self.mutations_occurred |= parent_is_in_doc && !children.is_empty();
 
          if parent_is_in_doc {
@@ -70,7 +70,7 @@ index 89387bd..9846f5e 100644
          }
 
          for child_id in children {
-@@ -1031,7 +1037,12 @@ impl DocumentMutator<'_> {
+@@ -1041,7 +1047,12 @@ impl DocumentMutator<'_> {
              )
          {
              hint |= RestyleHint::RESTYLE_DESCENDANTS;
@@ -83,7 +83,7 @@ index 89387bd..9846f5e 100644
              let children = self.doc.nodes[parent_id].children().to_vec();
              let later = if flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS) {
                  changed.end..children.len()
-@@ -1054,9 +1065,26 @@ impl DocumentMutator<'_> {
+@@ -1064,9 +1075,26 @@ impl DocumentMutator<'_> {
                          .find(is_element);
                  }
              }
@@ -111,7 +111,7 @@ index 89387bd..9846f5e 100644
          }
 
          let parent = &mut self.doc.nodes[parent_id];
-@@ -1189,7 +1217,7 @@ impl DocumentMutator<'_> {
+@@ -1199,7 +1227,7 @@ impl DocumentMutator<'_> {
              old_parent.remove_child(child_id);
 
              if child_was_in_doc {
@@ -120,7 +120,7 @@ index 89387bd..9846f5e 100644
                  devtools!(
                      self,
                      MutationRecord::NodeRemoved(NodeRemoved {
-@@ -1202,26 +1230,15 @@ impl DocumentMutator<'_> {
+@@ -1212,26 +1240,15 @@ impl DocumentMutator<'_> {
              self.maybe_record_node(old_parent_id);
          }
 
@@ -150,7 +150,7 @@ index 89387bd..9846f5e 100644
              } else {
                  self.restyle_for_child_list_change(parent_id, index..index + child_ids.len());
              }
-@@ -1307,6 +1324,60 @@ impl DocumentMutator<'_> {
+@@ -1317,6 +1334,60 @@ impl DocumentMutator<'_> {
          })
      }
 

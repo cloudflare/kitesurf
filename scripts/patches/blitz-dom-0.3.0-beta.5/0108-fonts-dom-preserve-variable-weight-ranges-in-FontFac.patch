@@ -87,10 +87,10 @@ index b8d262d..889d79a 100644
          if needs_range_check {
              self.ensure_used_codepoints();
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 6f6f28b..3480d0c 100644
+index bb4879e..c14884e 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -1968,10 +1968,18 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1978,10 +1978,18 @@ impl<'doc> DocumentMutator<'doc> {
          // Carry the media attribute to the parse so the built
          // sheet is scoped to it (print sheets must not apply on screen).
          let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
