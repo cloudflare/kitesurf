@@ -143,7 +143,7 @@ async function withEngine(externalWs, fn) {
   try {
     return fn(eng.wsEndpoint, eng);
   } finally {
-    eng.stop();
+    await eng.stop();
   }
 }
 

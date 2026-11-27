@@ -20,6 +20,7 @@ import net from "node:net";
 import os from "node:os";
 import { resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { STOP_GRACE_MS, stopProcessGroup } from "./process-group.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const USAGE =
@@ -73,17 +74,17 @@ function track(child) {
 }
 
 function stopChildren() {
-  for (const child of children) stopGroup(child);
+  return Promise.all(Array.from(children, stopGroup));
 }
 
-process.on("exit", stopChildren);
+process.on("exit", () => void stopChildren());
 for (const [signal, code] of [
   ["SIGINT", 130],
   ["SIGTERM", 143],
   ["SIGHUP", 129],
 ]) {
-  process.once(signal, () => {
-    stopChildren();
+  process.once(signal, async () => {
+    await stopChildren();
     process.exit(code);
   });
 }
@@ -168,11 +169,11 @@ async function waitPortsFree(ports, label, stop = () => {}) {
   }
 }
 
+// The batched runner's engines are process groups of their own, which only the runner stops; a
+// SIGKILL to the runner leaves them running. The grace covers the runner's own engine stop.
 function stopGroup(child) {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
-  try {
-    process.kill(-child.pid, "SIGKILL");
-  } catch {}
+  return stopProcessGroup(child.pid, 2 * STOP_GRACE_MS);
 }
 
 async function startWptServe(options, env, scratch) {
@@ -283,7 +284,7 @@ async function attempt(options, env, scratch, limitMs) {
     const result = await runBatched(options, env, limitMs);
     return { code: result.code, completed: complete(options, result.code, result.finished) };
   } finally {
-    stopGroup(serve);
+    await stopGroup(serve);
   }
 }
 
