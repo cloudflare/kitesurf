@@ -329,13 +329,13 @@ const emulationDomain = defineDomain("Emulation", {
 
     "Emulation.setEmulatedMedia": async ({ ctx, target }, req) => {
       if (!target) return {};
-      const hasMedia = typeof req.params?.media === "string";
-      const normalised = hasMedia
-        ? req.params?.media === "print"
-          ? "print"
-          : "screen"
-        : target.emulatedMedia;
+      // Chrome's setEmulatedMedia treats an absent (or empty) media type as "screen", so a
+      // client that changes only features, such as Puppeteer's emulateMediaFeatures after an
+      // emulateMediaType("print"), must not leave the previous type applied.
+      const normalised = req.params?.media === "print" ? "print" : "screen";
       target.emulatedMedia = normalised;
+      // An omitted features list leaves the color-scheme override alone so
+      // emulateMediaType and emulateMediaFeatures stay independent of each other.
       let darkColorScheme = target.emulatedDarkColorScheme;
       if (Array.isArray(req.params?.features)) {
         const schemeFeature = (

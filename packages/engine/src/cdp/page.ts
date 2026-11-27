@@ -505,7 +505,13 @@ async function saveCurrentHistoryScroll(ctx: DispatchCtx, target: TargetState): 
   const current = target.navigationHistory[target.navigationHistoryIndex];
   if (!current) return;
   try {
-    const metrics = await sessionOf(ctx, target).callIfLive.layoutMetrics({});
+    // The document being left can be stuck in script, so its metrics read is bounded like the
+    // pre-navigate drain: an unanswered read must not hold the navigation that replaces it.
+    const metrics = await withTimeout(
+      sessionOf(ctx, target).callIfLive.layoutMetrics({}),
+      NAVIGATE_DRAIN_TIMEOUT_MS,
+      "save history scroll",
+    );
     if (metrics) {
       target.navigationHistoryScroll.set(current.id, {
         x: metrics.scrollX,
@@ -778,9 +784,15 @@ export const pageDomain = defineDomain("Page", {
       const saved = target.navigationHistoryScroll.get(dest.id);
       if (saved && (saved.x > 0 || saved.y > 0) && target.pageScript) {
         try {
-          await target.pageScript.evaluate(
-            `if (typeof history === "undefined" || history.scrollRestoration !== "manual") { window.scrollTo(${saved.x}, ${saved.y}); }`,
-            {},
+          // A restored document can be just as busy as the one left behind; the restore is a
+          // best-effort nicety and is bounded like the save.
+          await withTimeout(
+            target.pageScript.evaluate(
+              `if (typeof history === "undefined" || history.scrollRestoration !== "manual") { window.scrollTo(${saved.x}, ${saved.y}); }`,
+              {},
+            ),
+            NAVIGATE_DRAIN_TIMEOUT_MS,
+            "restore history scroll",
           );
         } catch {}
       }
