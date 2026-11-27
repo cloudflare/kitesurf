@@ -47,10 +47,12 @@ pub struct KrillaPaintScene<'a, 'b> {
     mask_depth: u32,
     pending_text: String,
     pending_text_ranges: Vec<std::ops::Range<usize>>,
+    /// The page stripe in scene space, so pattern fallbacks skip tiles the page clips away.
+    cull_rect: Option<kurbo::Rect>,
 }
 
 impl<'a, 'b> KrillaPaintScene<'a, 'b> {
-    pub fn new(surface: &'a mut Surface<'b>) -> Self {
+    pub fn new(surface: &'a mut Surface<'b>, cull_rect: Option<kurbo::Rect>) -> Self {
         Self {
             surface,
             font_cache: HashMap::new(),
@@ -59,6 +61,7 @@ impl<'a, 'b> KrillaPaintScene<'a, 'b> {
             mask_depth: 0,
             pending_text: String::new(),
             pending_text_ranges: Vec::new(),
+            cull_rect,
         }
     }
 
@@ -196,6 +199,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         }
         let paint_ref: PaintRef<'p> = brush.into();
         if let Paint::Pattern(pattern) = paint_ref {
+            let cull_rect = self.cull_rect;
             anyrender::stroke_pattern_tiles(
                 self,
                 pattern,
@@ -203,7 +207,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
                 transform,
                 brush_transform,
                 shape,
-                None,
+                cull_rect,
             );
             return;
         }
@@ -252,6 +256,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         }
         let paint_ref: PaintRef<'p> = brush.into();
         if let Paint::Pattern(pattern) = paint_ref {
+            let cull_rect = self.cull_rect;
             anyrender::fill_pattern_tiles(
                 self,
                 pattern,
@@ -259,7 +264,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
                 transform,
                 brush_transform,
                 shape,
-                None,
+                cull_rect,
             );
             return;
         }
@@ -335,6 +340,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         }
         let paint_ref: PaintRef<'p> = brush.into();
         if let Paint::Pattern(pattern) = paint_ref {
+            let cull_rect = self.cull_rect;
             anyrender::draw_glyphs_pattern_tiles(
                 self,
                 pattern,
@@ -348,7 +354,7 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
                 transform,
                 glyph_transform,
                 glyphs,
-                None,
+                cull_rect,
             );
             return;
         }

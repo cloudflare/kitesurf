@@ -72,3 +72,37 @@ fn reach_clears_when_the_box_stops_being_rehomed() {
         "stale reach left behind after the box stopped being re-homed"
     );
 }
+
+// Without a layer root between `#host` and `#cb`, `#ab` is lifted to `#cb` instead of re-homed
+// in `#host`. Toggling the wrapper's isolation must move the box between the two across
+// incremental resolves, and leave no re-homed bookkeeping behind once it is lifted.
+#[test]
+fn lifting_and_rehoming_follow_the_layer_root_across_resolves() {
+    let dom = setup(PAGE);
+    let host = dom.query_selector("#host").unwrap() as u32;
+    let ab = dom.query_selector("#ab").unwrap() as u32;
+    let wrapper = dom.query_selector("#cb > div").unwrap() as u32;
+    assert_eq!(dom.test_rehomed_paint_children(host), vec![ab], "baseline");
+
+    for round in 0..2 {
+        dom.set_attribute(wrapper, "style", "");
+        dom.resolve_layout();
+        assert!(
+            dom.test_rehomed_paint_children(host).is_empty(),
+            "round {round}: lifted box still re-homed in the host"
+        );
+        assert_eq!(reach(&dom, "#host"), None, "round {round}: stale reach");
+
+        dom.set_attribute(wrapper, "style", "isolation:isolate");
+        dom.resolve_layout();
+        assert_eq!(
+            dom.test_rehomed_paint_children(host),
+            vec![ab],
+            "round {round}: box not re-homed once the wrapper isolates again"
+        );
+        assert!(
+            reach(&dom, "#host").is_some(),
+            "round {round}: reach missing"
+        );
+    }
+}

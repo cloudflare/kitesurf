@@ -677,7 +677,9 @@ struct ReplayVisitor<'a, 'b, S: PaintScene> {
     missing_fonts: u32,
     missing_images: u32,
     text_runs: u32,
-    clip_paths: bool,
+    /// Per clip layer in push order, whether it must stay a layer (see `LayerComposeScan`).
+    clip_needs_layer: Vec<bool>,
+    next_clip: usize,
     open_clip_paths: Vec<bool>,
     /// The scene holds text from `on_glyph_text` that the next glyph run must consume.
     glyph_text_pending: bool,
@@ -733,6 +735,12 @@ fn is_whole_pixel_rect(transform: DecodedTransform, clip_path: &[DecodedPathEl])
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct LayerComposeScan {
     non_source_over: bool,
+    /// Per clip layer in push order: whether a non-SourceOver layer or a mask layer opens inside
+    /// it. Clipping each draw is only equivalent to a clip layer when every draw composites
+    /// SourceOver, so only such clips must stay layers.
+    clip_needs_layer: Vec<bool>,
+    /// One entry per open layer: its index in `clip_needs_layer` if it is a clip layer.
+    open_clips: Vec<Option<usize>>,
     dimensions: (u32, u32),
     depth: u32,
     unbalanced: bool,
@@ -749,20 +757,27 @@ impl SceneVisitor for LayerComposeScan {
         _: DecodedTransform,
         _: &[DecodedPathEl],
     ) {
-        self.non_source_over |= compose_from_u8(compose) != peniko::Compose::SrcOver;
+        if compose_from_u8(compose) != peniko::Compose::SrcOver {
+            self.mark_non_source_over();
+        }
+        self.open_clips.push(None);
         self.depth += 1;
     }
     fn on_push_clip_layer(&mut self, _: DecodedTransform, _: &[DecodedPathEl]) {
+        self.open_clips.push(Some(self.clip_needs_layer.len()));
+        self.clip_needs_layer.push(false);
         self.depth += 1;
     }
     // Backends composite a mask layer with DestIn.
     fn on_push_mask_layer(&mut self, _: DecodedMaskMode, _: DecodedTransform, _: &[DecodedPathEl]) {
-        self.non_source_over = true;
+        self.mark_non_source_over();
+        self.open_clips.push(None);
         self.depth += 1;
     }
     fn on_pop_layer(&mut self) {
         self.unbalanced |= self.depth == 0;
         self.depth = self.depth.saturating_sub(1);
+        self.open_clips.pop();
     }
     fn on_fill(
         &mut self,
@@ -816,6 +831,16 @@ impl SceneVisitor for LayerComposeScan {
 }
 
 #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
+impl LayerComposeScan {
+    fn mark_non_source_over(&mut self) {
+        self.non_source_over = true;
+        for index in self.open_clips.iter().flatten() {
+            self.clip_needs_layer[*index] = true;
+        }
+    }
+}
+
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn scan_layer_composition(scene_bytes: &[u8], dimensions: (u32, u32)) -> LayerComposeScan {
     let mut scan = LayerComposeScan {
         dimensions,
@@ -823,6 +848,7 @@ fn scan_layer_composition(scene_bytes: &[u8], dimensions: (u32, u32)) -> LayerCo
     };
     if scene_decode::decode(scene_bytes, &mut scan).is_err() {
         scan.non_source_over = true;
+        scan.clip_needs_layer.fill(true);
     }
     scan
 }
@@ -998,6 +1024,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
     }
 
     fn on_push_clip_layer(&mut self, transform: DecodedTransform, clip_path: &[DecodedPathEl]) {
+        let clip = self.next_clip;
+        self.next_clip += 1;
         // A rect reaches the backend as a rect, which anyrender_vello_cpu clips without a
         // layer, as it does when blitz-paint draws into it directly.
         if std::mem::take(&mut self.rect_clip) {
@@ -1007,7 +1035,9 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
             self.open_clip_paths.push(false);
             return;
         }
-        let as_path = self.clip_paths && is_whole_pixel_rect(transform, clip_path);
+        // A clip the scan did not see (it stopped at a decode error) stays a layer.
+        let needs_layer = self.clip_needs_layer.get(clip).copied().unwrap_or(true);
+        let as_path = !needs_layer && is_whole_pixel_rect(transform, clip_path);
         if as_path {
             self.scene
                 .push_clip_path(Fill::NonZero, affine(transform), &bez_path(clip_path));
@@ -1302,14 +1332,15 @@ pub(crate) fn replay_into<S: PaintScene>(
     let mut resources =
         scene_decode::parse_resources(scene_bytes, &header).map_err(|e| e.to_string())?;
     let ctx = ReplayContext::new(store, &mut resources);
-    let composition = scan_layer_composition(scene_bytes, raster_dimensions(&header));
+    let mut composition = scan_layer_composition(scene_bytes, raster_dimensions(&header));
     let mut vis = ReplayVisitor {
         scene: target,
         ctx: &ctx,
         missing_fonts: 0,
         missing_images: 0,
         text_runs: 0,
-        clip_paths: !composition.non_source_over,
+        clip_needs_layer: std::mem::take(&mut composition.clip_needs_layer),
+        next_clip: 0,
         open_clip_paths: Vec::new(),
         glyph_text_pending: false,
         aliased: false,
@@ -1949,7 +1980,8 @@ fn replay_pdf_page(
     }
     push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
     {
-        let mut kps = KrillaPaintScene::new(&mut surface);
+        let stripe = kurbo::Rect::new(0.0, 0.0, content_w.into(), stripe_h.into());
+        let mut kps = KrillaPaintScene::new(&mut surface, Some(stripe));
         replay_into(scene_bytes, store, &mut kps)?;
     }
     surface.pop();
@@ -4409,6 +4441,66 @@ mod tests {
         let worst = replay_diff_from_clip_layers(
             dest_out_layer_in_whole_pixel_clip,
             dest_out_layer_in_whole_pixel_clip,
+        );
+        assert!(worst <= CLIP_ROUNDING, "replay is off by {worst}");
+    }
+
+    // Two whole-pixel path clips, as CSS `clip-path` on a sharp box records them; only the
+    // first holds a mask layer.
+    fn mask_in_one_of_two_path_clips<S: PaintScene>(scene: &mut S) {
+        let clip = |x: f64| Rect::new(x, 20.0, x + 60.0, 80.0).to_path(0.1);
+        let aa = AntiAliasing::Enabled;
+        let white = Rect::new(0.0, 0.0, W as f64, H as f64);
+        scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            Color::WHITE,
+            None,
+            &white,
+            aa,
+        );
+        scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &clip(10.0));
+        let red = Color::from_rgba8(255, 0, 0, 255);
+        scene.fill(Fill::NonZero, Affine::IDENTITY, red, None, &white, aa);
+        let hole = Rect::new(30.0, 40.0, 50.0, 60.0).to_path(0.1);
+        scene.push_mask_layer(Fill::NonZero, MaskMode::Alpha, Affine::IDENTITY, &hole);
+        scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            Color::BLACK,
+            None,
+            &white,
+            aa,
+        );
+        scene.pop_layer();
+        scene.pop_layer();
+        scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &clip(90.0));
+        let translucent = Color::from_rgba8(0, 0, 255, 128);
+        for dx in [0.0, 15.0] {
+            let overlap = Rect::new(95.0 + dx, 25.0, 130.0 + dx, 75.0);
+            scene.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                translucent,
+                None,
+                &overlap,
+                aa,
+            );
+        }
+        scene.pop_layer();
+    }
+
+    #[test]
+    fn a_mask_keeps_only_its_own_clip_a_layer() {
+        let mut rec = RecordingScene::for_replay();
+        rec.set_viewport(W, H, 0, 0);
+        mask_in_one_of_two_path_clips(&mut rec);
+        let scan = scan_layer_composition(&rec.finish_framed(), (W, H));
+        assert_eq!(scan.clip_needs_layer, vec![true, false]);
+
+        let worst = replay_diff_from_clip_layers(
+            mask_in_one_of_two_path_clips,
+            mask_in_one_of_two_path_clips,
         );
         assert!(worst <= CLIP_ROUNDING, "replay is off by {worst}");
     }

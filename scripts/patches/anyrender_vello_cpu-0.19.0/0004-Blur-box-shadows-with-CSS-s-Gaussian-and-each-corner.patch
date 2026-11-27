@@ -15,6 +15,13 @@ The analytic blur also takes one circular radius, and this backend averaged all
 eight. An outset shadow whose corners differ now blurs each corner's quadrant with
 that corner's own radius, clipped to the quadrant. The quadrants meet on straight
 edges, where every radius blurs alike. Inset shadows still use the average.
+Under a translation, the splits and outer bounds sit on the device pixel
+grid. Clips that abut mid-pixel each anti-alias the shared row, which came
+out lighter than its neighbours.
+
+The √2 makes upstream's blurred_inset_shadow_keeps_background test see
+more background 3.5px inside the edge: about 10 of 255, as a CSS Gaussian
+gives, where it allowed 8.
 
 Both used to live in blitz-paint's box-shadow patch, which beta.5 dropped once
 upstream moved shadows behind PaintScene::draw_box_shadow.
@@ -23,14 +30,14 @@ Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
 
 beep-boop-🤖
 ---
- src/scene.rs | 80 ++++++++++++++++++++++++++++++++++++++++++++++------
- 1 file changed, 72 insertions(+), 8 deletions(-)
+ src/scene.rs | 137 +++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 127 insertions(+), 10 deletions(-)
 
 diff --git a/src/scene.rs b/src/scene.rs
-index d59d6b5..cac643c 100644
+index d59d6b5..a7db29b 100644
 --- a/src/scene.rs
 +++ b/src/scene.rs
-@@ -543,17 +543,81 @@ impl PaintScene for VelloCpuScenePainter {
+@@ -543,17 +543,106 @@ impl PaintScene for VelloCpuScenePainter {
              }
              return;
          }
@@ -60,7 +67,8 @@ index d59d6b5..cac643c 100644
 +            );
 +            return;
 +        }
-+        for (quadrant, local, radius) in blurred_shadow_quadrants(&shadow.rect, radii, std_dev) {
++        let quadrants = blurred_shadow_quadrants(&shadow.rect, radii, std_dev, transform);
++        for (quadrant, local, radius) in quadrants {
 +            self.render_ctx.push_clip_rect(&quadrant);
 +            self.render_ctx.fill_blurred_rounded_rect_in(
 +                &geometry.area,
@@ -82,28 +90,36 @@ index d59d6b5..cac643c 100644
 +    rect: &Rect,
 +    r: &anyrender::NonUniformRoundedRectRadii,
 +    std_dev: f64,
++    transform: Affine,
 +) -> [(Rect, Rect, f64); 4] {
-+    let straight = |a0: f64, a1: f64, b0: f64, b1: f64| {
++    // Clips that abut off the pixel grid both anti-alias the shared row, which then comes out
++    // lighter than its neighbours; under a translation, put the splits on the grid.
++    let grid = pixel_grid(transform);
++    let straight = |a0: f64, a1: f64, b0: f64, b1: f64, offset: Option<f64>| {
 +        let (lo, hi) = (a0.max(b0), a1.min(b1));
-+        if lo <= hi {
++        let mid = if lo <= hi {
 +            (lo + hi) / 2.0
 +        } else {
 +            (a0 + a1 + b0 + b1) / 4.0
-+        }
++        };
++        offset.map_or(mid, |o| (mid + o).round() - o)
 +    };
 +    let split_x = straight(
 +        rect.x0 + r.top_left.x,
 +        rect.x1 - r.top_right.x,
 +        rect.x0 + r.bottom_left.x,
 +        rect.x1 - r.bottom_right.x,
++        grid.map(|g| g.x),
 +    );
 +    let split_y = straight(
 +        rect.y0 + r.top_left.y,
 +        rect.y1 - r.bottom_left.y,
 +        rect.y0 + r.top_right.y,
 +        rect.y1 - r.bottom_right.y,
++        grid.map(|g| g.y),
 +    );
 +    let bounds = rect.inflate(4.0 * std_dev + 1.0, 4.0 * std_dev + 1.0);
++    let bounds = grid.map_or(bounds, |g| snap_out(bounds, g));
 +    let quadrant = |clip: Rect, corner: kurbo::Vec2| {
 +        let radius = (corner.x + corner.y) / 2.0;
 +        let reach = radius + 3.0 * std_dev + 1.0;
@@ -117,6 +133,68 @@ index d59d6b5..cac643c 100644
 +    ]
 +}
 +
++/// Where the device pixel grid sits in `transform`'s space, if `transform` only translates.
++fn pixel_grid(transform: Affine) -> Option<kurbo::Vec2> {
++    let [a, b, c, d, e, f] = transform.as_coeffs();
++    (a == 1.0 && b == 0.0 && c == 0.0 && d == 1.0).then_some(kurbo::Vec2::new(e, f))
++}
++
++/// `rect` grown outward to the device pixel grid at `grid`.
++fn snap_out(rect: Rect, grid: kurbo::Vec2) -> Rect {
++    Rect::new(
++        (rect.x0 + grid.x).floor() - grid.x,
++        (rect.y0 + grid.y).floor() - grid.y,
++        (rect.x1 + grid.x).ceil() - grid.x,
++        (rect.y1 + grid.y).ceil() - grid.y,
++    )
++}
++
  #[cfg(test)]
  mod clip_rule_tests {
      use anyrender::{AntiAliasing, PaintScene, recording::Scene, render_to_buffer};
+@@ -806,7 +895,8 @@ mod glyph_origin_snap_tests {
+ #[cfg(test)]
+ mod box_shadow_tests {
+     use anyrender::{
+-        AntiAliasing, BoxShadowKind, NonUniformRoundedRect, PaintScene, render_to_buffer,
++        AntiAliasing, BoxShadowKind, NonUniformRoundedRect, NonUniformRoundedRectRadii, PaintScene,
++        render_to_buffer,
+     };
+     use kurbo::{Affine, Rect, Vec2};
+     use peniko::color::palette::css::RED;
+@@ -915,7 +1005,34 @@ mod box_shadow_tests {
+             );
+             let center = (50 * 100 + 50) * 4;
+             assert_eq!(&buffer[center..center + 4], &[255, 255, 255, 255]);
++            // 3.5px inside the shadow's edge, a Gaussian of deviation 2 lets 1 - Φ(1.75), about
++            // 4% or 10 of 255, of the background through.
+             let edge = (50 * 100 + 21) * 4;
+-            assert!(buffer[edge + 1] < 8 && buffer[edge + 2] < 8 && buffer[edge + 3] == 255);
++            assert!(buffer[edge + 1] < 12 && buffer[edge + 2] < 12 && buffer[edge + 3] == 255);
++        }
++    }
++
++    #[test]
++    fn blurred_corner_quadrants_meet_without_a_seam() {
++        // The quadrants split at y = 74.5, between rows 74 and 75.
++        let radii = NonUniformRoundedRectRadii {
++            top_left: Vec2::new(8.0, 8.0),
++            top_right: Vec2::new(8.0, 8.0),
++            bottom_right: Vec2::ZERO,
++            bottom_left: Vec2::ZERO,
++        };
++        let shape = NonUniformRoundedRect::new(Rect::new(20.0, 20.0, 120.0, 121.0), radii);
++        let buffer = render_to_buffer::<VelloCpuImageRenderer, _>(
++            |scene| {
++                let kind = BoxShadowKind::Outset;
++                scene.draw_box_shadow(Affine::IDENTITY, &shape, Vec2::ZERO, 0.0, 4.0, RED, kind);
++            },
++            140,
++            140,
++        );
++        let alpha = |x: usize, y: usize| i32::from(buffer[(y * 140 + x) * 4 + 3]);
++        for x in [19, 120] {
++            let rows = [alpha(x, 73), alpha(x, 74), alpha(x, 75)];
++            assert!(rows.iter().all(|a| (a - rows[0]).abs() <= 1), "x={x}: {rows:?}");
+         }
+     }
