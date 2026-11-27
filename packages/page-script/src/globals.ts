@@ -5097,6 +5097,20 @@ export function installGlobals(
           if (urls.length === 0) throw new TypeError(`FontFace ${this.family}: unsupported src`);
           let lastError: unknown = null;
           for (const url of urls) {
+            // Blob URLs live in the page, not the network: the fetch shim hands non-network
+            // URLs to native fetch, which rejects them on workerd.
+            const blob = state.blobUrls.get(url);
+            if (blob) {
+              addFontInflight(url);
+              try {
+                return new Uint8Array(await blob.arrayBuffer());
+              } catch (error) {
+                lastError = error;
+                continue;
+              } finally {
+                removeFontInflight(url);
+              }
+            }
             addFontInflight(url);
             try {
               const response = await trustedFetch(url, undefined, { resourceType: "Font" });

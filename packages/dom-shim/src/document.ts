@@ -205,6 +205,15 @@ function editingEngine(doc: DocumentImpl): EditingEngine {
 
 const CURRENT_SCRIPT_BODY_KEY_MATCH_THRESHOLD = 8;
 
+// The fields `FontFaceSet` reads from a face added with `add()`.
+interface FontFaceLike {
+  family?: unknown;
+  status?: unknown;
+  weight?: unknown;
+  style?: unknown;
+  load?: () => Promise<unknown>;
+}
+
 interface DocumentFontSet {
   readonly ready: Promise<DocumentFontSet>;
   readonly status: "loading" | "loaded";
@@ -1134,21 +1143,36 @@ class DocumentImpl extends NodeBase implements Idl.Document {
 
   get fonts(): DocumentFontSet {
     if (!this.__fontFaceSet) {
-      const faces = new Set();
+      const faces = new Set<unknown>();
       const fontsReadyHook = ksInternals.fontsReady;
       const fontsInflightHook = ksInternals.fontsInflightCount;
+      const fontsReadyPromise = (): Promise<unknown> => {
+        if (!fontsReadyHook) return Promise.resolve();
+        try {
+          return Promise.resolve(fontsReadyHook());
+        } catch {
+          return Promise.resolve();
+        }
+      };
+      // The faces a font shorthand selects, preferring an exact weight/style match, as
+      // `FontFaceSet.check()` does. An empty list means no family was parsed or none matched.
+      const facesForFont = (font: string): FontFaceLike[] => {
+        const parsed = parseFontShorthand(String(font ?? ""));
+        if (!parsed.family) return [];
+        const matches: FontFaceLike[] = [];
+        for (const face of faces as Set<FontFaceLike>) {
+          if (String(face?.family ?? "").toLowerCase() === parsed.family) matches.push(face);
+        }
+        const exact = matches.filter(
+          (face) =>
+            normalizeWeight(face.weight) === parsed.weight &&
+            normalizeFontStyle(face.style) === parsed.style,
+        );
+        return exact.length > 0 ? exact : matches;
+      };
       const self: DocumentFontSet = {
         get ready() {
-          const p = fontsReadyHook
-            ? (() => {
-                try {
-                  return fontsReadyHook();
-                } catch {
-                  return null;
-                }
-              })()
-            : null;
-          return (p || Promise.resolve()).then(() => self);
+          return fontsReadyPromise().then(() => self);
         },
         get status() {
           const n = fontsInflightHook
@@ -1181,43 +1205,37 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         forEach(cb: (face: unknown, face2: unknown, set: Set<unknown>) => void, thisArg?: unknown) {
           faces.forEach(cb, thisArg);
         },
-        load(_font: string, _text?: string) {
-          // Limitation: resolves with every added face once fonts are ready,
-          // not only the faces matching `font` and `text`.
-          const p = fontsReadyHook
-            ? (() => {
-                try {
-                  return fontsReadyHook();
-                } catch {
-                  return null;
-                }
-              })()
-            : null;
-          return (p || Promise.resolve()).then(() => Array.from(faces));
+        load(font: string, _text?: string) {
+          // A face added with `add()` has not started loading, so start it here; otherwise
+          // `check()` keeps reporting the family as unavailable. The spec rejects with a
+          // NetworkError when a matching face fails to load.
+          const pending: Promise<unknown>[] = [];
+          for (const face of facesForFont(font)) {
+            if (face.status === "loaded" || typeof face.load !== "function") continue;
+            try {
+              pending.push(face.load());
+            } catch (error) {
+              pending.push(Promise.reject(error));
+            }
+          }
+          // Limitation: resolves with every added face, not only the matching ones.
+          return Promise.all([...pending, fontsReadyPromise()]).then(
+            () => Array.from(faces),
+            (error: unknown) => {
+              throw new DOMException(
+                `FontFaceSet.load: ${error instanceof Error ? error.message : String(error)}`,
+                "NetworkError",
+              );
+            },
+          );
         },
         check(font: string, _text?: string) {
           // A family this set knows is only usable once its matching face has
           // loaded; anything else is assumed available, as a system font is.
           // https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-check
-          const parsed = parseFontShorthand(String(font ?? ""));
-          if (!parsed.family) return true;
-          const matches: Array<{ status?: unknown; weight?: unknown; style?: unknown }> = [];
-          for (const face of faces as Set<{
-            family?: unknown;
-            status?: unknown;
-            weight?: unknown;
-            style?: unknown;
-          }>) {
-            if (String(face?.family ?? "").toLowerCase() === parsed.family) matches.push(face);
-          }
-          if (matches.length === 0) return true;
-          const exact = matches.filter(
-            (face) =>
-              normalizeWeight(face.weight) === parsed.weight &&
-              normalizeFontStyle(face.style) === parsed.style,
-          );
-          const relevant = exact.length > 0 ? exact : matches;
-          return relevant.some((face) => face.status === "loaded");
+          const matching = facesForFont(font);
+          if (matching.length === 0) return true;
+          return matching.some((face) => face.status === "loaded");
         },
         addEventListener() {},
         removeEventListener() {},

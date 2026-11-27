@@ -160,3 +160,80 @@ test("FontFace.load parses format(), tech(), and source lists and rejects local-
   expect(requests.filter((u) => u.includes("?v=quoted")).length).toBe(1);
   expect(requests.some((u) => u.includes("NoSuchLocalFont"))).toBe(false);
 }, 60_000);
+
+test("FontFace.load reads a blob: URL and rejects a revoked one", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8787/__fixtures/webfont-link.html", { waitUntil: "load" });
+  const out = await page.evaluate(async () => {
+    const bytes = await (await fetch("/__fixtures/bungee.woff2?v=blob")).arrayBuffer();
+    const url = URL.createObjectURL(new Blob([bytes]));
+    const face = new FontFace("KsBlobFace", `url(${url})`);
+    document.fonts.add(face);
+    await face.load();
+    const status = face.status;
+    const check = document.fonts.check("16px KsBlobFace");
+
+    // The fetch shim cannot load blob: URLs, so a revoked URL must reject.
+    URL.revokeObjectURL(url);
+    const revoked = new FontFace("KsBlobRevoked", `url(${url})`);
+    document.fonts.add(revoked);
+    let revokedError = "";
+    try {
+      await revoked.load();
+    } catch (error) {
+      revokedError = error instanceof Error ? error.message : String(error);
+    }
+    return {
+      status,
+      check,
+      revokedStatus: revoked.status,
+      revokedCheck: document.fonts.check("16px KsBlobRevoked"),
+      revokedError,
+    };
+  });
+  expect(out.status).toBe("loaded");
+  expect(out.check).toBe(true);
+  expect(out.revokedStatus).toBe("error");
+  expect(out.revokedCheck).toBe(false);
+  expect(out.revokedError).not.toBe("");
+}, 60_000);
+
+test("document.fonts.load starts a face added with add()", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8787/__fixtures/webfont-link.html", { waitUntil: "load" });
+  const out = await page.evaluate(async () => {
+    const face = new FontFace("KsSetLoad", 'url("/__fixtures/bungee.woff2?v=setload")');
+    const other = new FontFace("KsSetOther", 'url("/__fixtures/bungee.woff2?v=setother")');
+    document.fonts.add(face);
+    document.fonts.add(other);
+    const checkBefore = document.fonts.check("16px KsSetLoad");
+    const loaded = await document.fonts.load("16px KsSetLoad");
+    const checkAfter = document.fonts.check("16px KsSetLoad");
+
+    const failing = new FontFace("KsSetBad", 'url("/__fixtures/no-such-font.woff2")');
+    document.fonts.add(failing);
+    let loadError = "";
+    try {
+      await document.fonts.load("16px KsSetBad");
+    } catch (error) {
+      loadError = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    }
+    return {
+      checkBefore,
+      checkAfter,
+      status: face.status,
+      otherStatus: other.status,
+      loadedFamilies: loaded.map((f) => f.family),
+      failingStatus: failing.status,
+      failingCheck: document.fonts.check("16px KsSetBad"),
+      loadError,
+    };
+  });
+  expect(out.checkBefore).toBe(false);
+  expect(out.checkAfter).toBe(true);
+  expect(out.status).toBe("loaded");
+  // load() starts only the faces the font shorthand selects.
+  expect(out.otherStatus).toBe("unloaded");
+  expect(out.loadedFamilies).toContain("KsSetLoad");
+  expect(out.failingStatus).toBe("error");
+  expect(out.failingCheck).toBe(false);
+  expect(out.loadError).toContain("NetworkError");
+}, 60_000);
