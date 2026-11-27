@@ -1,0 +1,157 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 16:09:28 +0000
+Subject: [PATCH] Make pow(), log() and round() propagate NaN as CSS requires
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+css-values-4 makes NaN infectious in every math function and gives pow()
+and log() their own special cases. Rust's powf and log follow IEEE 754
+instead, so calc() returned the wrong value in these cases:
+
+- pow(NaN, 0), pow(1, NaN) and pow(±1, ±infinity) returned 1. CSS (like
+  ECMAScript) makes them NaN.
+- log(A, 1) returned ±infinity and log(A, 0) returned -0. A base of 1, 0
+  or below is NaN.
+- log(1, B) with 0 < B < 1 returned -0, so calc(1 / log(1, 0.5)) was
+  -infinity. log(1, B) is +0.
+- round(infinity, NaN) returned infinity, because the infinite-value
+  case came before any NaN check, at parse time and at used-value time.
+
+calc_pow() and calc_log() now hold these rules, next to calc_min() and
+calc_max(), and both the simplifier and resolve() use them.
+
+Gecko runs this same code, so Firefox has the same bug.
+
+WPT: css/css-values/hypot-pow-sqrt-computed.html,
+css/css-values/exp-log-compute.html, css/css-values/round-function.html.
+
+beep-boop-🤖
+---
+ values/generics/calc.rs | 26 ++++++++++++++++----------
+ values/mod.rs           | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 44 insertions(+), 10 deletions(-)
+
+diff --git a/values/generics/calc.rs b/values/generics/calc.rs
+index a6f611d..fa641d6 100644
+--- a/values/generics/calc.rs
++++ b/values/generics/calc.rs
+@@ -1398,7 +1398,9 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 // TODO(emilio): Seems like at least a few of these
+                 // special-cases could be removed if we do the math in a
+                 // particular order.
+-                if step.is_zero() {
++                if value.is_nan() || step.is_nan() {
++                    value = f32::NAN;
++                } else if step.is_zero() {
+                     value = f32::NAN;
+                 } else if value.is_infinite() {
+                     if step.is_infinite() {
+@@ -1528,7 +1530,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 if !a_ty.is_number() || !b_ty.is_number() {
+                     return Err(());
+                 }
+-                Ok((a.powf(b), NumericType::number()))
++                Ok((crate::values::calc_pow(a, b), NumericType::number()))
+             },
+             Self::Sqrt(c) => {
+                 let (value, ty) = c.resolve_internal(leaf_to_output_fn)?;
+@@ -1554,17 +1556,17 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 if !a_ty.is_number() {
+                     return Err(());
+                 }
+-                let value = match b {
++                let base = match b {
+                     Optional::Some(b) => {
+                         let (b, b_ty) = b.resolve_internal(leaf_to_output_fn)?;
+                         if !b_ty.is_number() {
+                             return Err(());
+                         }
+-                        a.log(b)
++                        Some(b)
+                     },
+-                    Optional::None => a.ln(),
++                    Optional::None => None,
+                 };
+-                Ok((value, NumericType::number()))
++                Ok((crate::values::calc_log(a, base), NumericType::number()))
+             },
+             Self::Exp(c) => {
+                 let (value, ty) = c.resolve_internal(leaf_to_output_fn)?;
+@@ -1917,7 +1919,10 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 ref mut value,
+                 ref mut step,
+             } => {
+-                if value_or_stop!(step.is_zero_leaf()) {
++                if value_or_stop!(step.is_zero_leaf())
++                    || value_or_stop!(value.is_nan_leaf())
++                    || value_or_stop!(step.is_nan_leaf())
++                {
+                     value_or_stop!(value.coerce_to_value(f32::NAN));
+                     replace_self_with!(&mut **value);
+                     return SimplificationResult::Simplified;
+@@ -2345,7 +2350,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 if let (CalcNode::Leaf(la), CalcNode::Leaf(lb)) = (&**a, &**b)
+                     && let (Some(a_val), Some(b_val)) = (la.as_number(), lb.as_number())
+                 {
+-                    let mut result = Self::Leaf(L::new_number(a_val.powf(b_val)));
++                    let mut result = Self::Leaf(L::new_number(crate::values::calc_pow(a_val, b_val)));
+                     replace_self_with!(&mut result);
+                     return SimplificationResult::Simplified;
+                 }
+@@ -2381,12 +2386,13 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                     let folded = match b {
+                         &mut Optional::Some(ref b) => {
+                             if let CalcNode::Leaf(ref lb) = **b {
+-                                lb.as_number().map(|b_val| a_val.log(b_val))
++                                lb.as_number()
++                                    .map(|b_val| crate::values::calc_log(a_val, Some(b_val)))
+                             } else {
+                                 None
+                             }
+                         },
+-                        Optional::None => Some(a_val.ln()),
++                        Optional::None => Some(crate::values::calc_log(a_val, None)),
+                     };
+                     if let Some(number) = folded {
+                         let mut result = Self::Leaf(L::new_number(number));
+diff --git a/values/mod.rs b/values/mod.rs
+index 3e0f73c..c907088 100644
+--- a/values/mod.rs
++++ b/values/mod.rs
+@@ -68,6 +68,34 @@ pub fn calc_max(a: CSSFloat, b: CSSFloat) -> CSSFloat {
+     }
+ }
+
++/// Computes pow(a, b). NaN is infectious in CSS, so unlike IEEE `pow` (and Rust's `powf`),
++/// pow(NaN, 0) and pow(1, NaN) are NaN, and so is pow(±1, ±infinity), as in ECMAScript.
++/// https://drafts.csswg.org/css-values-4/#exponent-infinities
++#[inline]
++pub fn calc_pow(a: CSSFloat, b: CSSFloat) -> CSSFloat {
++    if a.is_nan() || b.is_nan() || (b.is_infinite() && a.abs() == 1.0) {
++        return f32::NAN;
++    }
++    a.powf(b)
++}
++
++/// Computes log(a, b), or the natural logarithm of `a` when `b` is `None`. A base of 1, 0 or
++/// below is NaN rather than ±infinity or -0, and log(1, b) is +0 for every valid base.
++/// https://drafts.csswg.org/css-values-4/#exponent-infinities
++#[inline]
++pub fn calc_log(a: CSSFloat, b: Option<CSSFloat>) -> CSSFloat {
++    let Some(b) = b else {
++        return a.ln();
++    };
++    if a.is_nan() || b.is_nan() || b == 1.0 || b <= 0.0 {
++        return f32::NAN;
++    }
++    if a == 1.0 {
++        return 0.0;
++    }
++    a.log(b)
++}
++
+ /// Computes the sign of the given value. The CSS Values and Units definition for
+ /// sign() returns +0 or -0 for an input of +0 or -0, respectively (whereas the
+ /// Rust f32::signum() function returns +1 or -1, respectively).
