@@ -11,9 +11,9 @@
   },
   "scripts": {
     "prebuild": "bazel run //packages/engine:dev_build",
-    "dev": "pnpm run prebuild && MINIFLARE_WORKERD_V8_FLAGS=${MINIFLARE_WORKERD_V8_FLAGS:---expose-gc} wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
-    "dev:wpt": "pnpm run prebuild && MINIFLARE_WORKERD_V8_FLAGS=${MINIFLARE_WORKERD_V8_FLAGS:---expose-gc} wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
-    "dev:memprof": "pnpm --dir ../.. run build:wasm:memprof && MINIFLARE_WORKERD_V8_FLAGS=${MINIFLARE_WORKERD_V8_FLAGS:---expose-gc} wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
+    "dev": "pnpm run prebuild && MINIFLARE_WORKERD_V8_FLAGS=${MINIFLARE_WORKERD_V8_FLAGS:---expose-gc --no-flush-liftoff-code} wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
+    "dev:wpt": "pnpm run prebuild && MINIFLARE_WORKERD_V8_FLAGS=${MINIFLARE_WORKERD_V8_FLAGS:---expose-gc --no-flush-liftoff-code} wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
+    "dev:memprof": "pnpm --dir ../.. run build:wasm:memprof && MINIFLARE_WORKERD_V8_FLAGS=${MINIFLARE_WORKERD_V8_FLAGS:---expose-gc --no-flush-liftoff-code} wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
     "build": "pnpm run prebuild",
     "cf-typegen": "wrangler types -c wrangler.jsonc --include-runtime --no-strict-vars && wrangler types -c test/fixtures-worker/wrangler.jsonc --include-runtime --no-strict-vars test/fixtures-worker/worker-configuration.d.ts",
     "types": "pnpm run cf-typegen && tsc --noEmit && tsc --noEmit -p test/e2e/tsconfig.json && tsc --noEmit -p test/e2e/demos/tsconfig.json && tsc --noEmit -p test/fixtures-worker/tsconfig.json",
