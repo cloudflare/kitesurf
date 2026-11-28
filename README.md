@@ -87,15 +87,21 @@ then runs garbage collection after it stops a page isolate. Pages do not get
 Without the flag, the runtime stopped with a V8 out-of-memory error after about
 300 pages. With the flag, all 940 pages loaded and memory stayed below 4 GB.
 
-If you start `wrangler dev` directly, for example in a container, set the flag
+`pnpm run dev` also sets `--no-flush-liftoff-code`. The runtime signals memory
+pressure for each new isolate, and without the flag V8 drops the engine's
+compiled wasm code each time. Each page isolate then compiles it again, and the
+old code stays in memory. In one test, 50 navigations on one page used 675 MB
+without the flag and 280 MB with it.
+
+If you start `wrangler dev` directly, for example in a container, set the flags
 yourself. Run this from `packages/engine` and add your other options:
 
 ```bash
-MINIFLARE_WORKERD_V8_FLAGS=--expose-gc wrangler dev --env local
+MINIFLARE_WORKERD_V8_FLAGS="--expose-gc --no-flush-liftoff-code" wrangler dev --env local
 ```
 
 If you set `MINIFLARE_WORKERD_V8_FLAGS` for `pnpm run dev`, your value replaces
-the default. Include `--expose-gc` in it.
+the default. Include both flags in it.
 
 ## Run with Docker
 
